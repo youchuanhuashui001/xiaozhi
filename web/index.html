@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>imx6ull WebSocket 监控面板</title>
+	<style>
+		body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; color: #333; }
+		.container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+		header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 20px; }
+		.status { padding: 4px 12px; border-radius: 20px; font-size: 0.9em; font-weight: bold; }
+		.status-online { background-color: #e6ffed; color: #22863a; }
+		.status-offline { background-color: #ffeef0; color: #d73a49; }
+		.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px; }
+		.card { background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center; border: 1px solid #dee2e6; }
+		.card .label { font-size: 0.8em; color: #6c757d; text-transform: uppercase; margin-bottom: 10px; }
+		.card .value { font-size: 2em; font-weight: bold; color: #007bff; }
+		.control-panel { border-top: 1px solid #eee; padding-top: 20px; }
+		button { padding: 10px 20px; font-size: 1em; border: none; border-radius: 6px; cursor: pointer; transition: opacity 0.2s; margin-right: 10px; }
+		.btn-on { background-color: #28a745; color: white; }
+		.btn-off { background-color: #dc3545; color: white; }
+		#log { height: 150px; overflow-y: auto; background: #222; color: #0f0; font-family: monospace; padding: 10px; border-radius: 6px; font-size: 0.8em; margin-top: 20px; }
+	</style>
+</head>
+<body>
+	<div class="container">
+		<header>
+			<h1>开发板控制面板</h1>
+			<div id="status-indicator" class="status status-offline">未连接</div>
+		</header>
+
+		<div class="grid">
+			<div class="card">
+				<div class="label">温度</div>
+				<div id="temp" class="value">--</div>
+				<span>°C</span>
+			</div>
+			<div class="card">
+				<div class="label">湿度</div>
+				<div id="humidity" class="value">--</div>
+				<span>%</span>
+			</div>
+			<div class="card">
+				<div class="label">电压</div>
+				<div id="voltage" class="value">--</div>
+				<span>V</span>
+			</div>
+		</div>
+
+		<div class="control-panel">
+			<h3>LED 控制 (模拟)</h3>
+			<button class="btn-on" onclick="sendCmd('on')">开灯</button>
+			<button class="btn-off" onclick="sendCmd('off')">关灯</button>
+			<button onclick="getStatus()">获取系统状态</button>
+		</div>
+
+		<div id="log"></div>
+	</div>
+
+	<script>
+		let socket;
+		const logElement = document.getElementById('log');
+
+		function log(msg) {
+			const entry = document.createElement('div');
+			entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+			logElement.appendChild(entry);
+			logElement.scrollTop = logElement.scrollHeight;
+		}
+
+		function connect() {
+			const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+			const wsUrl = `${protocol}//${window.location.host}/`;
+			
+			log(`正在尝试连接: ${wsUrl}`);
+			socket = new WebSocket(wsUrl, 'sensor-protocol');
+
+			socket.onopen = () => {
+				document.getElementById('status-indicator').className = 'status status-online';
+				document.getElementById('status-indicator').textContent = '在线';
+				log('WebSocket 连接成功');
+			};
+
+			socket.onclose = () => {
+				document.getElementById('status-indicator').className = 'status status-offline';
+				document.getElementById('status-indicator').textContent = '断开重连...';
+				log('WebSocket 连接已断开');
+				setTimeout(connect, 3000);
+			};
+
+			socket.onerror = (err) => {
+				log('WebSocket 错误');
+			};
+
+			socket.onmessage = (event) => {
+				try {
+					const msg = JSON.parse(event.data);
+					if (msg.type === 'sensor') {
+						document.getElementById('temp').textContent = msg.data.temp;
+						document.getElementById('humidity').textContent = msg.data.humidity;
+						document.getElementById('voltage').textContent = msg.data.voltage;
+					} else {
+						log(`收到回复: ${event.data}`);
+					}
+				} catch (e) {
+					log(`报文解析错误: ${event.data}`);
+				}
+			};
+		}
+
+		function sendCmd(state) {
+			if (!socket || socket.readyState !== WebSocket.OPEN) return;
+			const cmd = {
+				type: "cmd",
+				action: "set_led",
+				params: { id: 1, state: state }
+			};
+			const jsonStr = JSON.stringify(cmd);
+			socket.send(jsonStr);
+			log(`发送指令: ${jsonStr}`);
+		}
+
+		function getStatus() {
+			if (!socket || socket.readyState !== WebSocket.OPEN) return;
+			const cmd = { type: "cmd", action: "get_status" };
+			const jsonStr = JSON.stringify(cmd);
+			socket.send(jsonStr);
+			log(`发送指令: ${jsonStr}`);
+		}
+
+		// 启动连接
+		connect();
+	</script>
+</body>
+</html>

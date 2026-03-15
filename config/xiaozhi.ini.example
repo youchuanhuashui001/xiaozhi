@@ -1,0 +1,21 @@
+[server]
+url = wss://api.tenclass.net/xiaozhi/v1/
+# Optional. Leave empty to skip Authorization header.
+token =
+protocol_version = 1
+
+[device]
+device_id = desktop-device
+client_id = desktop-client
+
+[audio]
+capture_device = default
+playback_device = default
+input_sample_rate = 16000
+silence_timeout_ms = 1200
+silence_threshold = 500
+max_utterance_ms = 15000
+
+[runtime]
+log_level = info
+reconnect_backoff_ms = 3000
