@@ -1,8 +1,17 @@
 #include "audio_playback.h"
+#include "audio_playback_internal.h"
 
 #include <alsa/asoundlib.h>
+#include <errno.h>
 #include <string.h>
 #include <unistd.h>
+
+#include "log.h"
+
+/* Prefer a small startup prebuffer to reduce TTS playback xruns. */
+#define AUDIO_PLAYBACK_TARGET_BUFFER_TIME_US 240000U
+#define AUDIO_PLAYBACK_TARGET_PERIOD_TIME_US 60000U
+#define AUDIO_PLAYBACK_START_BUFFER_PERIODS 3U
 
 static void push_playback_finished(audio_playback_t *pb)
 {
@@ -16,10 +25,131 @@ static void push_playback_finished(audio_playback_t *pb)
 	(void)event_queue_push(pb->events, &event);
 }
 
+typedef struct {
+	snd_pcm_t *pcm;
+} audio_playback_alsa_ctx_t;
+
+static long audio_playback_alsa_write_frames(void *ctx, const int16_t *pcm, size_t frames)
+{
+	audio_playback_alsa_ctx_t *alsa = ctx;
+
+	if (!alsa || !alsa->pcm || !pcm || frames == 0)
+		return -1;
+
+	return (long)snd_pcm_writei(alsa->pcm, pcm, (snd_pcm_uframes_t)frames);
+}
+
+static int audio_playback_alsa_recover(void *ctx, int err)
+{
+	audio_playback_alsa_ctx_t *alsa = ctx;
+	int rc;
+
+	if (!alsa || !alsa->pcm)
+		return -1;
+	if (err == -EAGAIN || err == -EINTR)
+		return 0;
+
+	rc = snd_pcm_recover(alsa->pcm, err, 1);
+	if (rc < 0) {
+		log_warn("alsa recover failed (err=%d, rc=%d)", err, rc);
+		return -1;
+	}
+
+	log_warn("alsa stream recovered from write error (err=%d)", err);
+	return 0;
+}
+
+size_t audio_playback_compute_start_threshold(size_t buffer_frames,
+					      size_t period_frames,
+					      size_t periods_to_buffer)
+{
+	size_t requested;
+
+	if (buffer_frames == 0)
+		return 0;
+	if (period_frames == 0 || periods_to_buffer == 0)
+		return buffer_frames;
+	if (period_frames > SIZE_MAX / periods_to_buffer)
+		return buffer_frames;
+
+	requested = period_frames * periods_to_buffer;
+	return requested < buffer_frames ? requested : buffer_frames;
+}
+
+int audio_playback_write_all_frames(const int16_t *pcm, size_t frames, int channels,
+				    audio_playback_write_frames_fn write_frames,
+				    audio_playback_recover_fn recover,
+				    void *ctx)
+{
+	size_t written = 0;
+
+	if (!pcm || frames == 0 || channels <= 0 || !write_frames)
+		return -1;
+
+	while (written < frames) {
+		long rc;
+
+		rc = write_frames(ctx, pcm + written * (size_t)channels, frames - written);
+		if (rc > 0) {
+			written += (size_t)rc;
+			continue;
+		}
+		if (rc == 0)
+			return -1;
+		if (!recover || recover(ctx, (int)rc) != 0)
+			return -1;
+	}
+
+	return 0;
+}
+
+static int audio_playback_apply_sw_params(snd_pcm_t *handle)
+{
+	snd_pcm_sw_params_t *sw = NULL;
+	snd_pcm_uframes_t buffer_size = 0;
+	snd_pcm_uframes_t period_size = 0;
+	snd_pcm_uframes_t start_threshold = 0;
+	int rc;
+
+	if (!handle)
+		return -1;
+	if (snd_pcm_get_params(handle, &buffer_size, &period_size) < 0)
+		return -1;
+
+	start_threshold = (snd_pcm_uframes_t)audio_playback_compute_start_threshold(
+		(size_t)buffer_size,
+		(size_t)period_size,
+		AUDIO_PLAYBACK_START_BUFFER_PERIODS);
+	if (start_threshold == 0)
+		start_threshold = buffer_size;
+
+	rc = snd_pcm_sw_params_malloc(&sw);
+	if (rc < 0)
+		return -1;
+	rc = snd_pcm_sw_params_current(handle, sw);
+	if (rc < 0)
+		goto fail;
+	rc = snd_pcm_sw_params_set_avail_min(handle, sw, period_size > 0 ? period_size : 1);
+	if (rc < 0)
+		goto fail;
+	rc = snd_pcm_sw_params_set_start_threshold(handle, sw, start_threshold);
+	if (rc < 0)
+		goto fail;
+	rc = snd_pcm_sw_params(handle, sw);
+	snd_pcm_sw_params_free(sw);
+	return rc < 0 ? -1 : 0;
+
+fail:
+	snd_pcm_sw_params_free(sw);
+	return -1;
+}
+
 static int audio_playback_open_device(audio_playback_t *pb, int sample_rate,
 				      snd_pcm_t **handle)
 {
 	snd_pcm_hw_params_t *params = NULL;
+	unsigned int period_time_us = AUDIO_PLAYBACK_TARGET_PERIOD_TIME_US;
+	unsigned int buffer_time_us = AUDIO_PLAYBACK_TARGET_BUFFER_TIME_US;
 	int rc;
 
 	rc = snd_pcm_open(handle, pb->config.device[0] ? pb->config.device : "default",
@@ -42,12 +172,17 @@ static int audio_playback_open_device(audio_playback_t *pb, int sample_rate,
 	if (snd_pcm_hw_params_set_rate(*handle, params,
 				       (unsigned int)sample_rate, 0) < 0)
 		goto fail;
+	(void)snd_pcm_hw_params_set_period_time_near(*handle, params, &period_time_us, NULL);
+	(void)snd_pcm_hw_params_set_buffer_time_near(*handle, params, &buffer_time_us, NULL);
 	rc = snd_pcm_hw_params(*handle, params);
 	snd_pcm_hw_params_free(params);
 	if (rc < 0) {
 		snd_pcm_close(*handle);
 		*handle = NULL;
 		return rc;
+	}
+	if (audio_playback_apply_sw_params(*handle) != 0) {
+		log_warn("failed to apply ALSA software params; using device defaults");
 	}
 
 	return 0;
@@ -111,14 +246,22 @@ static void *audio_playback_thread(void *arg)
 		}
 
 		if (pcm) {
-			snd_pcm_sframes_t frames = (snd_pcm_sframes_t)(block.len /
-				(sizeof(int16_t) * (size_t)pb->config.channels));
-			snd_pcm_sframes_t rc = snd_pcm_writei(pcm, block.data, frames);
+			size_t frames = block.len /
+				(sizeof(int16_t) * (size_t)pb->config.channels);
+			audio_playback_alsa_ctx_t write_ctx = {
+				.pcm = pcm
+			};
 
-			if (rc < 0)
+			if (audio_playback_write_all_frames((const int16_t *)block.data,
+							    frames,
+							    pb->config.channels,
+							    audio_playback_alsa_write_frames,
+							    audio_playback_alsa_recover,
+							    &write_ctx) != 0) {
 				snd_pcm_prepare(pcm);
-			else if (audio_buffer_size(&pb->queue) == 0)
+			} else if (audio_buffer_size(&pb->queue) == 0) {
 				push_playback_finished(pb);
+			}
 		}
 	}
 

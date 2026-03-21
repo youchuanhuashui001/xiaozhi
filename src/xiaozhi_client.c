@@ -88,6 +88,34 @@ static int xiaozhi_client_pop_binary_locked(xiaozhi_client_t *client,
 	return 1;
 }
 
+int xiaozhi_client_feed_binary_fragment(xiaozhi_client_t *client,
+					const uint8_t *payload,
+					size_t len,
+					int is_final_fragment)
+{
+	if (!client || !payload || len == 0)
+		return -1;
+
+	if (client->recv_binary_len + len > sizeof(client->recv_binary)) {
+		client->recv_binary_len = 0;
+		return -1;
+	}
+
+	memcpy(client->recv_binary + client->recv_binary_len, payload, len);
+	client->recv_binary_len += len;
+
+	if (!is_final_fragment)
+		return 0;
+
+	if (client->callbacks.on_binary) {
+		client->callbacks.on_binary(client->callback_ctx,
+					    client->recv_binary,
+					    client->recv_binary_len);
+	}
+	client->recv_binary_len = 0;
+	return 0;
+}
+
 static int xiaozhi_client_append_header(struct lws *wsi, const char *name,
 					const char *value, unsigned char **p,
 					unsigned char *end)
@@ -145,9 +173,17 @@ static int xiaozhi_client_callback(struct lws *wsi,
 
 	case LWS_CALLBACK_CLIENT_RECEIVE:
 		if (lws_frame_is_binary(wsi)) {
-			if (client->callbacks.on_binary)
-				client->callbacks.on_binary(client->callback_ctx,
-							    (const uint8_t *)in, len);
+			int is_final_fragment =
+				(lws_remaining_packet_payload(wsi) == 0 &&
+				 lws_is_final_fragment(wsi));
+
+			if (xiaozhi_client_feed_binary_fragment(client,
+							(const uint8_t *)in,
+							len,
+							is_final_fragment) != 0) {
+				xiaozhi_client_notify_error(client,
+							    "received binary frame too large");
+			}
 			break;
 		}
 

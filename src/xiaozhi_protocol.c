@@ -115,6 +115,10 @@ static xiaozhi_event_type_t parse_type(const cJSON *type, const cJSON *state)
 			return XIAOZHI_EVENT_TTS_START;
 		if (cJSON_IsString(state) && strcmp(state->valuestring, "stop") == 0)
 			return XIAOZHI_EVENT_TTS_STOP;
+		if (cJSON_IsString(state) &&
+		    (strcmp(state->valuestring, "sentence_start") == 0 ||
+		     strcmp(state->valuestring, "sentence_end") == 0))
+			return XIAOZHI_EVENT_TTS_SENTENCE;
 		return XIAOZHI_EVENT_UNKNOWN;
 	}
 

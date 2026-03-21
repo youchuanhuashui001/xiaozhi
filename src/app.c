@@ -245,12 +245,15 @@ static void app_client_on_binary(void *ctx, const uint8_t *data, size_t len)
 	if (app->upload_enabled || !data || len == 0)
 		return;
 
-	log_info("ws recv binary: %zu bytes", len);
 	frames = opus_decode_frame(&app->decoder, data, len, pcm,
 				  (int)(sizeof(pcm) / sizeof(pcm[0])));
 	if (frames > 0) {
-		(void)audio_playback_enqueue(&app->playback, pcm, (size_t)frames,
-					     app->decoder_sample_rate);
+		if (audio_playback_enqueue(&app->playback, pcm, (size_t)frames,
+					   app->decoder_sample_rate) != 0) {
+			log_warn("failed to enqueue decoded audio frame");
+		}
+	} else {
+		log_warn("failed to decode opus packet (%d), len=%zu", frames, len);
 	}
 }
 
@@ -273,8 +276,10 @@ static void app_capture_on_pcm(void *ctx, const int16_t *pcm, size_t frames)
 		packet_len = opus_encode_frame(&app->encoder, pcm, (int)frames,
 					      packet, sizeof(packet));
 		if (packet_len > 0) {
-			if (app_write_opus_packet(app, packet, (size_t)packet_len) != 0)
+			if (app_write_opus_packet(app, packet, (size_t)packet_len) != 0 &&
+			    app->upload_enabled) {
 				log_warn("failed to dump opus frame to file");
+			}
 			if (xiaozhi_client_queue_binary(&app->client, packet,
 							(size_t)packet_len) != 0) {
 				log_warn("failed to queue opus frame for websocket upload");
@@ -494,6 +499,9 @@ static void app_handle_protocol_event(app_runtime_t *app,
 		app->tts_done = 1;
 		if (audio_buffer_size(&app->playback.queue) == 0)
 			app_reset_to_idle(app);
+		break;
+
+	case XIAOZHI_EVENT_TTS_SENTENCE:
 		break;
 
 	case XIAOZHI_EVENT_SYSTEM:

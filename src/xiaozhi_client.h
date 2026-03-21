@@ -46,6 +46,8 @@ typedef struct {
 	int connected;
 	char recv_text[4096];
 	size_t recv_text_len;
+	uint8_t recv_binary[4096];
+	size_t recv_binary_len;
 } xiaozhi_client_t;
 
 int xiaozhi_client_init(xiaozhi_client_t *client,

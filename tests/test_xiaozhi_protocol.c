@@ -14,6 +14,8 @@ int main(void)
 	};
 	xiaozhi_incoming_event_t event = {0};
 	const char *incoming = "{\"type\":\"tts\",\"state\":\"stop\",\"session_id\":\"abc\"}";
+	const char *incoming_sentence =
+		"{\"type\":\"tts\",\"state\":\"sentence_start\",\"text\":\"hello\",\"session_id\":\"abc\"}";
 
 	assert(xiaozhi_build_hello(&hello, json, sizeof(json)) == 0);
 	assert(strstr(json, "\"type\":\"hello\"") != NULL);
@@ -27,6 +29,8 @@ int main(void)
 
 	assert(xiaozhi_parse_incoming_json(incoming, &event) == 0);
 	assert(event.type == XIAOZHI_EVENT_TTS_STOP);
+	assert(xiaozhi_parse_incoming_json(incoming_sentence, &event) == 0);
+	assert(event.type == XIAOZHI_EVENT_TTS_SENTENCE);
 
 	return 0;
 }
