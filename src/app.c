@@ -11,6 +11,8 @@
 
 static void app_reset_to_idle(app_runtime_t *app);
 static void app_log_manual_ready(void);
+static int app_bootstrap_ota(app_runtime_t *app);
+static void app_log_activation_required(const app_runtime_t *app);
 
 static void app_log_ws_request_headers(const app_runtime_t *app)
 {
@@ -151,6 +153,57 @@ static void app_fill_default_ids(app_runtime_t *app)
 		snprintf(app->config.device.client_id,
 			 sizeof(app->config.device.client_id),
 			 "desktop-client");
+}
+
+static void app_log_activation_required(const app_runtime_t *app)
+{
+	if (!app || !app->activation_pending)
+		return;
+
+	log_warn("activation required");
+	log_warn("activation code: %s",
+		 app->ota_response.activation.code[0] != '\0' ?
+		 app->ota_response.activation.code : "(missing)");
+	if (app->ota_response.activation.message[0] != '\0')
+		log_warn("activation message: %s", app->ota_response.activation.message);
+	log_warn("please activate the device, then restart the client");
+}
+
+static int app_bootstrap_ota(app_runtime_t *app)
+{
+	char err[256];
+	ota_fetch_fn_t fetcher;
+
+	if (!app)
+		return -1;
+
+	fetcher = app->options.ota_fetch ? app->options.ota_fetch : ota_fetch;
+	if (fetcher(&app->config, &app->ota_response, err, sizeof(err),
+		    app->options.ota_fetch_ctx) != 0) {
+		log_error("ota bootstrap failed: %s", err);
+		return -1;
+	}
+
+	if (app->ota_response.websocket.url[0] != '\0') {
+		snprintf(app->config.server.url, sizeof(app->config.server.url), "%s",
+			 app->ota_response.websocket.url);
+	}
+	if (app->ota_response.websocket.token[0] != '\0') {
+		snprintf(app->config.server.token, sizeof(app->config.server.token), "%s",
+			 app->ota_response.websocket.token);
+	}
+
+	if (app->ota_response.activation_required) {
+		app->activation_pending = 1;
+		return 0;
+	}
+
+	if (app->config.server.url[0] == '\0') {
+		log_error("ota bootstrap did not provide websocket.url and no fallback server.url is configured");
+		return -1;
+	}
+
+	return 0;
 }
 
 static void app_client_on_connected(void *ctx)
@@ -466,7 +519,6 @@ static int app_init_runtime_modules(app_runtime_t *app)
 	audio_capture_config_t capture_cfg;
 	audio_playback_config_t playback_cfg;
 
-	app_fill_default_ids(app);
 	pthread_mutex_init(&app->opus_dump_mutex, NULL);
 	app->opus_dump_mutex_initialized = 1;
 
@@ -535,6 +587,7 @@ static int app_init_runtime_modules(app_runtime_t *app)
 		return -1;
 	}
 
+	app->runtime_modules_initialized = 1;
 	return 0;
 }
 
@@ -558,18 +611,27 @@ int app_init(app_runtime_t *app, const app_options_t *opts)
 	}
 
 	log_set_level(app_parse_log_level(app->config.runtime.log_level));
+	app_fill_default_ids(app);
 
 	if (event_queue_init(&app->events, 64) != 0)
 		return -1;
 
 	session_init(&app->session);
 	app->check_only = app->options.check_only;
+	app->skip_runtime_init = app->options.skip_runtime_init;
 	app->initialized = 1;
 
 	if (app->check_only) {
 		log_info("config validation success");
 		return 0;
 	}
+
+	if (app_bootstrap_ota(app) != 0)
+		return -1;
+	if (app->activation_pending)
+		return 0;
+	if (app->skip_runtime_init)
+		return 0;
 
 	if (app_init_runtime_modules(app) != 0)
 		return -1;
@@ -624,6 +686,13 @@ int app_run(app_runtime_t *app)
 {
 	if (!app || !app->initialized)
 		return -1;
+
+	if (app->activation_pending) {
+		app_log_activation_required(app);
+		return 1;
+	}
+	if (app->skip_runtime_init)
+		return 0;
 
 	app_reset_to_idle(app);
 	if (!app->client_started) {
@@ -721,7 +790,7 @@ void app_destroy(app_runtime_t *app)
 	if (!app || !app->initialized)
 		return;
 
-	if (!app->check_only) {
+	if (!app->check_only && app->runtime_modules_initialized) {
 		app_close_opus_dump_file(app);
 		if (app->client_started)
 			xiaozhi_client_stop(&app->client);

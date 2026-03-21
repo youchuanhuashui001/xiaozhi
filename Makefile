@@ -22,6 +22,7 @@ COMMON_CFLAGS	:= -Wall -Wextra -std=c11 -D_GNU_SOURCE -Isrc $(LWS_CFLAGS) $(OPUS
 CFLAGS		:= $(COMMON_CFLAGS)
 CXXFLAGS	:= -Wall -Wextra -std=c++11 -D_GNU_SOURCE -Isrc $(LWS_CFLAGS) $(OPUS_CFLAGS) $(ALSA_CFLAGS)
 LDFLAGS		:= $(LWS_LDFLAGS) $(OPUS_LDFLAGS) $(ALSA_LDFLAGS) -lpthread
+DEPFLAGS	:= -MMD -MP
 
 SRC_DIR		:= src
 TEST_DIR	:= tests
@@ -43,6 +44,7 @@ APP_SRCS	:= \
 	$(SRC_DIR)/event_queue.c \
 	$(SRC_DIR)/main.c \
 	$(SRC_DIR)/opus_codec.c \
+	$(SRC_DIR)/ota_client.c \
 	$(SRC_DIR)/session.c \
 	$(SRC_DIR)/xiaozhi_client.c \
 	$(SRC_DIR)/xiaozhi_protocol.c \
@@ -58,6 +60,7 @@ TEST_SUPPORT_SRCS := \
 	$(SRC_DIR)/log.c \
 	$(SRC_DIR)/config.c \
 	$(SRC_DIR)/opus_codec.c \
+	$(SRC_DIR)/ota_client.c \
 	$(SRC_DIR)/session.c \
 	$(SRC_DIR)/xiaozhi_client.c \
 	$(SRC_DIR)/xiaozhi_protocol.c
@@ -66,6 +69,7 @@ APP_OBJS	:= $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(APP_SRCS))
 CPP_OBJS	:= $(patsubst $(SRC_DIR)/%.cc,$(BUILD_DIR)/%.o,$(CPP_SRCS))
 TEST_SUPPORT_OBJS := $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(TEST_SUPPORT_SRCS))
 TEST_BIN	:= $(BUILD_DIR)/tests/$(TEST)
+DEPS		:= $(sort $(APP_OBJS:.o=.d) $(CPP_OBJS:.o=.d) $(TEST_SUPPORT_OBJS:.o=.d))
 
 .PHONY: all clean test
 
@@ -88,10 +92,10 @@ $(TEST_BIN): $(TEST_SRC) $(TEST_SUPPORT_OBJS) $(CPP_OBJS) | $(BUILD_DIR)/tests
 	fi
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(BUILD_DIR)
-	$(CC) $(COMMON_CFLAGS) -c -o $@ $<
+	$(CC) $(COMMON_CFLAGS) $(DEPFLAGS) -c -o $@ $<
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cc | $(BUILD_DIR)
-	$(CXX) $(CXXFLAGS) -c -o $@ $<
+	$(CXX) $(CXXFLAGS) $(DEPFLAGS) -c -o $@ $<
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
@@ -101,3 +105,5 @@ $(BUILD_DIR)/tests: | $(BUILD_DIR)
 
 clean:
 	rm -rf $(BUILD_DIR)
+
+-include $(DEPS)

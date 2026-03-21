@@ -10,9 +10,23 @@ typedef struct {
 } server_config_t;
 
 typedef struct {
+	char url[256];
+	char accept_language[32];
+	char app_version[64];
+	char elf_sha256[96];
+} ota_config_t;
+
+typedef struct {
 	char device_id[64];
 	char client_id[64];
 } device_config_t;
+
+typedef struct {
+	char type[64];
+	char name[64];
+	char ssid[64];
+	int rssi;
+} board_config_t;
 
 typedef struct {
 	char capture_device[64];
@@ -36,8 +50,10 @@ typedef struct {
 } runtime_config_t;
 
 typedef struct {
+	ota_config_t ota;
 	server_config_t server;
 	device_config_t device;
+	board_config_t board;
 	audio_config_t audio;
 	snowboy_config_t snowboy;
 	runtime_config_t runtime;

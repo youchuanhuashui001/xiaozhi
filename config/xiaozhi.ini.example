@@ -1,3 +1,15 @@
+[ota]
+url = https://api.tenclass.net/xiaozhi/ota/
+accept_language = zh-CN
+app_version = 1.0.1
+elf_sha256 =
+
+[board]
+type = linux-pc-client
+name = linux-pc-client
+ssid =
+rssi = 0
+
 [server]
 url = wss://api.tenclass.net/xiaozhi/v1/
 # Optional. Leave empty to skip Authorization header.

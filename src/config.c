@@ -42,6 +42,7 @@ static void config_apply_defaults(app_config_t *cfg)
 {
 	memset(cfg, 0, sizeof(*cfg));
 	cfg->server.protocol_version = 1;
+	cfg->board.rssi = 0;
 	copy_str(cfg->audio.capture_device, sizeof(cfg->audio.capture_device), "default");
 	copy_str(cfg->audio.playback_device, sizeof(cfg->audio.playback_device), "default");
 	cfg->audio.input_sample_rate = 16000;
@@ -59,7 +60,16 @@ static void config_apply_defaults(app_config_t *cfg)
 static void config_assign_value(app_config_t *cfg, const char *section,
 				const char *key, const char *value)
 {
-	if (strcmp(section, "server") == 0) {
+	if (strcmp(section, "ota") == 0) {
+		if (strcmp(key, "url") == 0)
+			copy_str(cfg->ota.url, sizeof(cfg->ota.url), value);
+		else if (strcmp(key, "accept_language") == 0)
+			copy_str(cfg->ota.accept_language, sizeof(cfg->ota.accept_language), value);
+		else if (strcmp(key, "app_version") == 0)
+			copy_str(cfg->ota.app_version, sizeof(cfg->ota.app_version), value);
+		else if (strcmp(key, "elf_sha256") == 0)
+			copy_str(cfg->ota.elf_sha256, sizeof(cfg->ota.elf_sha256), value);
+	} else if (strcmp(section, "server") == 0) {
 		if (strcmp(key, "url") == 0)
 			copy_str(cfg->server.url, sizeof(cfg->server.url), value);
 		else if (strcmp(key, "token") == 0)
@@ -71,6 +81,15 @@ static void config_assign_value(app_config_t *cfg, const char *section,
 			copy_str(cfg->device.device_id, sizeof(cfg->device.device_id), value);
 		else if (strcmp(key, "client_id") == 0)
 			copy_str(cfg->device.client_id, sizeof(cfg->device.client_id), value);
+	} else if (strcmp(section, "board") == 0) {
+		if (strcmp(key, "type") == 0)
+			copy_str(cfg->board.type, sizeof(cfg->board.type), value);
+		else if (strcmp(key, "name") == 0)
+			copy_str(cfg->board.name, sizeof(cfg->board.name), value);
+		else if (strcmp(key, "ssid") == 0)
+			copy_str(cfg->board.ssid, sizeof(cfg->board.ssid), value);
+		else if (strcmp(key, "rssi") == 0)
+			cfg->board.rssi = atoi(value);
 	} else if (strcmp(section, "audio") == 0) {
 		if (strcmp(key, "capture_device") == 0)
 			copy_str(cfg->audio.capture_device, sizeof(cfg->audio.capture_device), value);
@@ -103,8 +122,23 @@ static void config_assign_value(app_config_t *cfg, const char *section,
 
 static int config_validate(const app_config_t *cfg, char *err, size_t err_size)
 {
-	if (cfg->server.url[0] == '\0') {
-		set_error(err, err_size, "missing server.url");
+	if (cfg->ota.url[0] == '\0') {
+		set_error(err, err_size, "missing ota.url");
+		return -1;
+	}
+
+	if (cfg->ota.app_version[0] == '\0') {
+		set_error(err, err_size, "missing ota.app_version");
+		return -1;
+	}
+
+	if (cfg->board.type[0] == '\0') {
+		set_error(err, err_size, "missing board.type");
+		return -1;
+	}
+
+	if (cfg->board.name[0] == '\0') {
+		set_error(err, err_size, "missing board.name");
 		return -1;
 	}
 
