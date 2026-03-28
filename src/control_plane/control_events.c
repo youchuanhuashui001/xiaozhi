@@ -116,11 +116,6 @@ int control_events_from_protocol(const xiaozhi_incoming_event_t *in,
 			goto fail;
 		break;
 	case XIAOZHI_EVENT_TTS_SENTENCE:
-		if (copy_string(out->name, sizeof(out->name), "tts_state") != 0)
-			goto fail;
-		if (!cJSON_AddStringToObject(root, "state", "sentence"))
-			goto fail;
-		break;
 	default:
 		goto fail;
 	}
