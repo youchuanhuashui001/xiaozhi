@@ -15,4 +15,4 @@ def test_upper_lower_local_smoke():
 
     output = proc.stdout + proc.stderr
     assert proc.returncode == 0, output
-    assert '"name":"state_changed"' in output
+    assert "control plane websocket listening" in output

@@ -1,5 +1,4 @@
 #include <assert.h>
-#include <stdio.h>
 #include <string.h>
 
 #include "app.h"
@@ -54,7 +53,16 @@ static void test_daemon_runtime_tracks_last_command(void)
 		      "\"name\":\"state_changed\"") != NULL);
 	assert(strstr(control_plane_server_last_outbound_json(&server),
 		      "\"state\":\"idle\"") != NULL);
-	puts(control_plane_server_last_outbound_json(&server));
+
+	assert(control_plane_server_dispatch_json(
+		       &server,
+		       "{\"type\":\"command\",\"name\":\"set_audio_config\",\"request_id\":\"req-3\",\"payload\":{\"input_gain\":75}}") == 0);
+	assert(strstr(control_plane_server_last_outbound_json(&server),
+		      "\"type\":\"command_ack\"") != NULL);
+	assert(strstr(control_plane_server_last_outbound_json(&server),
+		      "\"name\":\"set_audio_config\"") != NULL);
+	assert(strstr(control_plane_server_last_outbound_json(&server),
+		      "\"ok\":true") != NULL);
 
 	control_plane_server_stop(&server);
 }

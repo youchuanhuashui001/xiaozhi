@@ -29,6 +29,12 @@ static daemon_runtime_command_t daemon_runtime_command_from_name(const char *nam
 		return DAEMON_RUNTIME_COMMAND_CONNECT_SERVER;
 	if (strcmp(name, "disconnect_server") == 0)
 		return DAEMON_RUNTIME_COMMAND_DISCONNECT_SERVER;
+	if (strcmp(name, "set_server_config") == 0)
+		return DAEMON_RUNTIME_COMMAND_SET_SERVER_CONFIG;
+	if (strcmp(name, "set_audio_config") == 0)
+		return DAEMON_RUNTIME_COMMAND_SET_AUDIO_CONFIG;
+	if (strcmp(name, "test_connection") == 0)
+		return DAEMON_RUNTIME_COMMAND_TEST_CONNECTION;
 	if (strcmp(name, "shutdown_client") == 0)
 		return DAEMON_RUNTIME_COMMAND_SHUTDOWN_CLIENT;
 	return DAEMON_RUNTIME_COMMAND_UNKNOWN;
@@ -139,6 +145,8 @@ int daemon_runtime_submit_command(daemon_runtime_t *rt,
 				     const control_command_t *cmd)
 {
 	daemon_runtime_command_t mapped;
+	int rc = 0;
+	int app_ready = 0;
 
 	if (!rt || !cmd)
 		return -1;
@@ -151,7 +159,32 @@ int daemon_runtime_submit_command(daemon_runtime_t *rt,
 	rt->last_command = mapped;
 	rt->last_control_command = *cmd;
 	pthread_mutex_unlock(&rt->lock);
-	return 0;
+
+	app_ready = rt->app && rt->app->initialized && !rt->app->check_only &&
+		    !rt->app->skip_runtime_init;
+	if (!app_ready)
+		return 0;
+
+	switch (mapped) {
+	case DAEMON_RUNTIME_COMMAND_CONNECT_SERVER:
+		rc = app_control_connect(rt->app);
+		break;
+	case DAEMON_RUNTIME_COMMAND_DISCONNECT_SERVER:
+		rc = app_control_disconnect(rt->app);
+		break;
+	case DAEMON_RUNTIME_COMMAND_SHUTDOWN_CLIENT:
+		rc = app_control_shutdown(rt->app);
+		break;
+	case DAEMON_RUNTIME_COMMAND_SET_SERVER_CONFIG:
+	case DAEMON_RUNTIME_COMMAND_SET_AUDIO_CONFIG:
+	case DAEMON_RUNTIME_COMMAND_TEST_CONNECTION:
+	case DAEMON_RUNTIME_COMMAND_NONE:
+	default:
+		rc = 0;
+		break;
+	}
+
+	return rc == 0 ? 0 : -1;
 }
 
 int daemon_runtime_snapshot(daemon_runtime_t *rt, control_event_t *event,

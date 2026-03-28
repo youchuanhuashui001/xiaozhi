@@ -67,6 +67,9 @@ typedef struct {
 int app_init(app_runtime_t *app, const app_options_t *opts);
 int app_run(app_runtime_t *app);
 int app_set_observer(app_runtime_t *app, app_observer_fn fn, void *ctx);
+int app_control_connect(app_runtime_t *app);
+int app_control_disconnect(app_runtime_t *app);
+int app_control_shutdown(app_runtime_t *app);
 void app_request_stop(app_runtime_t *app);
 void app_destroy(app_runtime_t *app);
 

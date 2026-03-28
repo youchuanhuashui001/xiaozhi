@@ -796,6 +796,25 @@ int app_run(app_runtime_t *app)
 			app_notify_error(app, event.text, event.code);
 			break;
 
+		case APP_EVENT_CONTROL_CONNECT:
+			if (!app->client_started) {
+				app->session.state = SESSION_STATE_CONNECTING;
+				app_handle_action(app, SESSION_ACTION_CONNECT);
+			}
+			break;
+
+		case APP_EVENT_CONTROL_DISCONNECT:
+			if (app->client_started) {
+				xiaozhi_client_stop(&app->client);
+				app->client_started = 0;
+			}
+			app_reset_to_idle(app);
+			break;
+
+		case APP_EVENT_CONTROL_SHUTDOWN:
+			app->stop_requested = 1;
+			break;
+
 		case APP_EVENT_SHUTDOWN:
 			app->stop_requested = 1;
 			break;
@@ -819,6 +838,33 @@ int app_set_observer(app_runtime_t *app, app_observer_fn fn, void *ctx)
 	app->observer_ctx = ctx;
 	app->observer_state_valid = 0;
 	app_publish_state_if_changed(app);
+	return 0;
+}
+
+int app_control_connect(app_runtime_t *app)
+{
+	if (!app || !app->initialized || app->check_only || app->skip_runtime_init)
+		return -1;
+
+	app_push_event(app, APP_EVENT_CONTROL_CONNECT, NULL, 0);
+	return 0;
+}
+
+int app_control_disconnect(app_runtime_t *app)
+{
+	if (!app || !app->initialized)
+		return -1;
+
+	app_push_event(app, APP_EVENT_CONTROL_DISCONNECT, NULL, 0);
+	return 0;
+}
+
+int app_control_shutdown(app_runtime_t *app)
+{
+	if (!app || !app->initialized)
+		return -1;
+
+	app_push_event(app, APP_EVENT_CONTROL_SHUTDOWN, NULL, 0);
 	return 0;
 }
 
