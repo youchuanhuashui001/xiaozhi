@@ -37,4 +37,17 @@ add_executable(xiaozhi_daemon src/daemon/main_daemon.c)
 target_link_libraries(xiaozhi_daemon PRIVATE xiaozhi_core)
 target_include_directories(xiaozhi_daemon PRIVATE src)
 
+add_subdirectory(tests)
 add_subdirectory(gui EXCLUDE_FROM_ALL)
+
+find_program(PYTEST_EXECUTABLE pytest)
+if (PYTEST_EXECUTABLE)
+    add_test(
+        NAME tests_python
+        COMMAND ${CMAKE_COMMAND} -E env
+            PYTHONPATH=${CMAKE_SOURCE_DIR}
+            ${PYTEST_EXECUTABLE} -q ${CMAKE_SOURCE_DIR}/tests_python
+    )
+else()
+    message(WARNING "pytest not found, skip tests_python in CTest")
+endif()
