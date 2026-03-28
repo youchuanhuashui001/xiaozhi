@@ -72,7 +72,7 @@ void ControlClient::disconnectFromServer()
 
 void ControlClient::sendCommand(const QString &name,
                                 const QString &requestId,
-                                const QJsonObject &payload)
+                                const QVariantMap &payload)
 {
     QJsonObject obj;
 
@@ -86,7 +86,7 @@ void ControlClient::sendCommand(const QString &name,
     if (!requestId.isEmpty()) {
         obj.insert(QStringLiteral("request_id"), requestId);
     }
-    obj.insert(QStringLiteral("payload"), payload);
+    obj.insert(QStringLiteral("payload"), QJsonObject::fromVariantMap(payload));
 
     m_socket->sendTextMessage(QString::fromUtf8(
         QJsonDocument(obj).toJson(QJsonDocument::Compact)));

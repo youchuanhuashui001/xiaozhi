@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QJsonObject>
 #include <QString>
+#include <QVariantMap>
 
 class QAbstractSocket;
 class QWebSocket;
@@ -30,7 +31,7 @@ public:
     Q_INVOKABLE void disconnectFromServer();
     Q_INVOKABLE void sendCommand(const QString &name,
                                  const QString &requestId = QString(),
-                                 const QJsonObject &payload = QJsonObject());
+                                 const QVariantMap &payload = QVariantMap());
 
 signals:
     void endpointChanged();

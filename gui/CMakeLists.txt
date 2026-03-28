@@ -25,6 +25,15 @@ target_link_libraries(xiaozhi_gui
         Qt6::WebSockets
 )
 
+qt_add_resources(xiaozhi_gui "xiaozhi_gui_qml"
+    PREFIX "/"
+    FILES
+        qml/Main.qml
+        qml/pages/ConnectionSettings.qml
+        qml/pages/AudioHardware.qml
+        qml/pages/LiveConversation.qml
+)
+
 add_executable(test_view_model
     tests/test_view_model.cpp
     cpp/ControlClient.cpp
@@ -40,3 +49,27 @@ target_link_libraries(test_view_model
 )
 
 add_test(NAME test_view_model COMMAND test_view_model)
+
+add_executable(test_qml_smoke
+    tests/test_qml_smoke.cpp
+)
+
+target_link_libraries(test_qml_smoke
+    PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Qml
+        Qt6::Quick
+        Qt6::Test
+)
+
+qt_add_resources(test_qml_smoke "xiaozhi_gui_qml_smoke"
+    PREFIX "/"
+    FILES
+        qml/Main.qml
+        qml/pages/ConnectionSettings.qml
+        qml/pages/AudioHardware.qml
+        qml/pages/LiveConversation.qml
+)
+
+add_test(NAME test_qml_smoke COMMAND test_qml_smoke)
