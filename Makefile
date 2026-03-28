@@ -47,8 +47,11 @@ APP_SRCS	:= \
 	$(SRC_DIR)/audio_playback.c \
 	$(SRC_DIR)/cJSON.c \
 	$(SRC_DIR)/config.c \
+	$(SRC_DIR)/control_plane/control_events.c \
+	$(SRC_DIR)/control_plane/control_plane_server.c \
 	$(SRC_DIR)/event_queue.c \
 	$(SRC_DIR)/main.c \
+	$(SRC_DIR)/daemon/daemon_runtime.c \
 	$(SRC_DIR)/opus_codec.c \
 	$(SRC_DIR)/ota_client.c \
 	$(SRC_DIR)/control_plane/control_protocol.c \
@@ -66,6 +69,8 @@ TEST_SUPPORT_SRCS := \
 	$(SRC_DIR)/event_queue.c \
 	$(SRC_DIR)/log.c \
 	$(SRC_DIR)/config.c \
+	$(SRC_DIR)/control_plane/control_plane_server.c \
+	$(SRC_DIR)/daemon/daemon_runtime.c \
 	$(SRC_DIR)/opus_codec.c \
 	$(SRC_DIR)/ota_client.c \
 	$(SRC_DIR)/control_plane/control_protocol.c \
