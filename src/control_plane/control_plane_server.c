@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "control_plane/control_events.h"
+#include "log.h"
 
 enum {
 	CONTROL_PLANE_WS_RX_BUFFER = 2048
@@ -174,7 +175,7 @@ int control_plane_server_start(control_plane_server_t *server)
 {
 	struct lws_context_creation_info info;
 	const char *bind_host = "127.0.0.1";
-	int port = 0;
+	int port = 19090;
 
 	if (!server)
 		return -1;
@@ -213,6 +214,7 @@ int control_plane_server_start(control_plane_server_t *server)
 		server->context = NULL;
 		return -1;
 	}
+	log_info("control plane websocket listening on ws://%s:%d", bind_host, port);
 
 	return 0;
 }

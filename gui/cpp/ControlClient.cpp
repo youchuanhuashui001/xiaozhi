@@ -9,6 +9,7 @@
 ControlClient::ControlClient(QObject *parent)
     : QObject(parent),
       m_socket(new QWebSocket()),
+      m_endpoint(QStringLiteral("ws://127.0.0.1:19090")),
       m_connectionState(QStringLiteral("idle"))
 {
     m_socket->setParent(this);
@@ -95,6 +96,7 @@ void ControlClient::sendCommand(const QString &name,
 void ControlClient::handleSocketConnected()
 {
     setConnectionState(QStringLiteral("connected"));
+    sendCommand(QStringLiteral("subscribe_events"));
 }
 
 void ControlClient::handleSocketDisconnected()
