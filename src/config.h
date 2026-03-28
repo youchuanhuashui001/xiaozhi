@@ -44,12 +44,18 @@ typedef struct {
 } runtime_config_t;
 
 typedef struct {
+	char bind_host[64];
+	int port;
+} control_plane_config_t;
+
+typedef struct {
 	ota_config_t ota;
 	server_config_t server;
 	device_config_t device;
 	board_config_t board;
 	audio_config_t audio;
 	runtime_config_t runtime;
+	control_plane_config_t control_plane;
 } app_config_t;
 
 int config_load_file(const char *path, app_config_t *out, char *err, size_t err_size);

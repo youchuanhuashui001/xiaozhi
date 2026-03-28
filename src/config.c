@@ -52,6 +52,8 @@ static void config_apply_defaults(app_config_t *cfg)
 	copy_str(cfg->runtime.log_level, sizeof(cfg->runtime.log_level), "info");
 	copy_str(cfg->runtime.dialog_mode, sizeof(cfg->runtime.dialog_mode), "manual");
 	cfg->runtime.reconnect_backoff_ms = 3000;
+	copy_str(cfg->control_plane.bind_host, sizeof(cfg->control_plane.bind_host), "127.0.0.1");
+	cfg->control_plane.port = 19090;
 }
 
 static void config_assign_value(app_config_t *cfg, const char *section,
@@ -107,6 +109,11 @@ static void config_assign_value(app_config_t *cfg, const char *section,
 			copy_str(cfg->runtime.dialog_mode, sizeof(cfg->runtime.dialog_mode), value);
 		else if (strcmp(key, "reconnect_backoff_ms") == 0)
 			cfg->runtime.reconnect_backoff_ms = atoi(value);
+	} else if (strcmp(section, "control_plane") == 0) {
+		if (strcmp(key, "bind_host") == 0)
+			copy_str(cfg->control_plane.bind_host, sizeof(cfg->control_plane.bind_host), value);
+		else if (strcmp(key, "port") == 0)
+			cfg->control_plane.port = atoi(value);
 	}
 }
 
@@ -139,6 +146,11 @@ static int config_validate(const app_config_t *cfg, char *err, size_t err_size)
 	if (strcmp(cfg->runtime.dialog_mode, "manual") != 0 &&
 	    strcmp(cfg->runtime.dialog_mode, "auto") != 0) {
 		set_error(err, err_size, "invalid runtime.dialog_mode");
+		return -1;
+	}
+
+	if (cfg->control_plane.port <= 0 || cfg->control_plane.port > 65535) {
+		set_error(err, err_size, "invalid control_plane.port");
 		return -1;
 	}
 
