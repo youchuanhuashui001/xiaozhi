@@ -92,6 +92,7 @@ static void daemon_runtime_on_app_event(const app_observer_event_t *event, void 
 	if (!rt || !event)
 		return;
 
+	pthread_mutex_lock(&rt->lock);
 	rt->observed_event_count++;
 
 	switch (event->kind) {
@@ -110,19 +111,28 @@ static void daemon_runtime_on_app_event(const app_observer_event_t *event, void 
 	default:
 		break;
 	}
+	pthread_mutex_unlock(&rt->lock);
 }
 
 int daemon_runtime_init(daemon_runtime_t *rt, app_runtime_t *app)
 {
+	int rc;
+
 	if (!rt)
 		return -1;
 
 	memset(rt, 0, sizeof(*rt));
 	rt->app = app;
+	if (pthread_mutex_init(&rt->lock, NULL) != 0)
+		return -1;
+
 	if (!app)
 		return 0;
 
-	return app_set_observer(app, daemon_runtime_on_app_event, rt);
+	rc = app_set_observer(app, daemon_runtime_on_app_event, rt);
+	if (rc != 0)
+		pthread_mutex_destroy(&rt->lock);
+	return rc;
 }
 
 int daemon_runtime_submit_command(daemon_runtime_t *rt,
@@ -137,8 +147,25 @@ int daemon_runtime_submit_command(daemon_runtime_t *rt,
 	if (mapped == DAEMON_RUNTIME_COMMAND_UNKNOWN)
 		return -1;
 
+	pthread_mutex_lock(&rt->lock);
 	rt->last_command = mapped;
 	rt->last_control_command = *cmd;
+	pthread_mutex_unlock(&rt->lock);
+	return 0;
+}
+
+int daemon_runtime_snapshot(daemon_runtime_t *rt, control_event_t *event,
+			    unsigned long *observed_event_count)
+{
+	if (!rt)
+		return -1;
+
+	pthread_mutex_lock(&rt->lock);
+	if (event)
+		*event = rt->last_control_event;
+	if (observed_event_count)
+		*observed_event_count = rt->observed_event_count;
+	pthread_mutex_unlock(&rt->lock);
 	return 0;
 }
 
@@ -150,5 +177,6 @@ void daemon_runtime_destroy(daemon_runtime_t *rt)
 	if (rt->app && rt->app->observer_ctx == rt)
 		(void)app_set_observer(rt->app, NULL, NULL);
 
+	pthread_mutex_destroy(&rt->lock);
 	memset(rt, 0, sizeof(*rt));
 }
