@@ -61,14 +61,17 @@ static void test_tts_stop_maps_to_tts_state_stop(void)
 	assert(strstr(out.payload, "\"state\":\"stop\"") != NULL);
 }
 
-static void test_tts_sentence_is_unsupported(void)
+static void test_tts_sentence_maps_to_llm_text(void)
 {
 	xiaozhi_incoming_event_t in = {0};
 	control_event_t out = {0};
 
 	in.type = XIAOZHI_EVENT_TTS_SENTENCE;
+	strcpy(in.text, "reply from tts sentence");
 
-	assert(control_events_from_protocol(&in, &out) != 0);
+	assert(control_events_from_protocol(&in, &out) == 0);
+	assert(strcmp(out.name, "llm_text") == 0);
+	assert(strstr(out.payload, "\"text\":\"reply from tts sentence\"") != NULL);
 }
 
 static void test_null_inputs_fail(void)
@@ -92,7 +95,7 @@ int main(void)
 	test_stt_maps_to_stt_result();
 	test_llm_maps_to_llm_text();
 	test_tts_stop_maps_to_tts_state_stop();
-	test_tts_sentence_is_unsupported();
+	test_tts_sentence_maps_to_llm_text();
 	test_null_inputs_fail();
 	return 0;
 }

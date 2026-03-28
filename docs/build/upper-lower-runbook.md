@@ -139,7 +139,8 @@ cmake --build build-cmake -j
 
 Connection Settings：
 - 可看到默认控制面地址 `ws://127.0.0.1:19090`。
-- 点击 `Test Connection` 后状态从 `connecting` 进入 `connected` 或可见错误提示。
+- 点击 `Test Connection` 后，控制面连接状态应从 `connecting` 进入 `connected`（失败时可见错误提示）。
+- 在自动模式下，会话运行状态可能很快从 `ready` 进入 `uploading`，这是正常行为（表示已开始上行音频）。
 - daemon 侧有控制面连接日志。
 
 Audio & Hardware：

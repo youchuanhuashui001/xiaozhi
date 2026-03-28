@@ -116,6 +116,18 @@ int control_events_from_protocol(const xiaozhi_incoming_event_t *in,
 			goto fail;
 		break;
 	case XIAOZHI_EVENT_TTS_SENTENCE:
+		/*
+		 * Some backends stream assistant text via tts sentence events instead of
+		 * llm events. Surface non-empty sentence text to GUI as llm_text so the
+		 * Live Conversation panel can render assistant content consistently.
+		 */
+		if (in->text[0] == '\0')
+			goto fail;
+		if (copy_string(out->name, sizeof(out->name), "llm_text") != 0)
+			goto fail;
+		if (!cJSON_AddStringToObject(root, "text", in->text))
+			goto fail;
+		break;
 	default:
 		goto fail;
 	}
