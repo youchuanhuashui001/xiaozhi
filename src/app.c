@@ -57,8 +57,6 @@ static void app_push_event(app_runtime_t *app, app_event_type_t type,
 		snprintf(event.text, sizeof(event.text), "%s", text);
 	event.data_len = text ? strlen(event.text) : 0;
 	(void)event_queue_push(&app->events, &event);
-	if (type == APP_EVENT_ERROR)
-		app_notify_error(app, event.text, code);
 }
 
 static void app_notify_observer(app_runtime_t *app,
@@ -795,6 +793,7 @@ int app_run(app_runtime_t *app)
 			app_handle_action(app,
 					 session_handle_event(&app->session,
 								  APP_EVENT_ERROR));
+			app_notify_error(app, event.text, event.code);
 			break;
 
 		case APP_EVENT_SHUTDOWN:
