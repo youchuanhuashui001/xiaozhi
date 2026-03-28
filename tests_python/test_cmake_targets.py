@@ -7,3 +7,4 @@ def test_cmake_has_daemon_target(tmp_path):
     subprocess.check_call(["cmake", "-S", ".", "-B", str(b)], cwd=repo_root)
     out = subprocess.check_output(["cmake", "--build", str(b), "--target", "help"], text=True)
     assert "xiaozhi_daemon" in out
+    assert "xiaozhi_core" in out
