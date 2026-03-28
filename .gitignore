@@ -1,11 +1,14 @@
 *.o
 build/
+build-cmake/
 !docs/build/
 !docs/build/*.md
 *.log
 .vscode/
 .worktrees/
 .superpowers/
+__pycache__/
+*.pyc
 
 
 
