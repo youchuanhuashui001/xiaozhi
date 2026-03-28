@@ -17,7 +17,8 @@ sudo apt install -y \
 ```bash
 sudo apt install -y \
   qml6-module-qtquick qml6-module-qtquick-controls \
-  qml6-module-qtquick-layouts qml6-module-qtwebsockets \
+  qml6-module-qtquick-layouts qml6-module-qtquick-templates \
+  qml6-module-qtwebsockets \
   qml6-module-qtqml qml6-module-qtqml-workerscript
 ```
 
@@ -103,3 +104,11 @@ pytest -q tests_python
 - 检查 `config/xiaozhi.ini` 的音频设备名是否正确。
 - 用 `arecord -l`、`aplay -l` 确认设备存在。
 - 若是自动模式，静音超时日志会打印但不会主动停录（设计行为）。
+
+### 6.5 `module "QtQuick.Templates" plugin "qtquicktemplates2plugin" not found`
+
+处理：
+
+```bash
+sudo apt install -y qml6-module-qtquick-templates
+```
