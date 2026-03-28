@@ -54,9 +54,14 @@ int xiaozhi_build_listen_detect(char *buf, size_t buf_size)
 	return snprintf(buf, buf_size, "{\"type\":\"listen\",\"state\":\"detect\"}") >= (int)buf_size ? -1 : 0;
 }
 
-int xiaozhi_build_listen_start(char *buf, size_t buf_size)
+int xiaozhi_build_listen_start(const char *session_id, char *buf, size_t buf_size)
 {
-	return snprintf(buf, buf_size, "{\"type\":\"listen\",\"state\":\"start\",\"mode\":\"auto\"}") >= (int)buf_size ? -1 : 0;
+	if (!session_id || session_id[0] == '\0' || !buf || buf_size == 0)
+		return -1;
+
+	return snprintf(buf, buf_size,
+			"{\"session_id\":\"%s\",\"type\":\"listen\",\"state\":\"start\",\"mode\":\"auto\"}",
+			session_id) >= (int)buf_size ? -1 : 0;
 }
 
 int xiaozhi_build_listen_stop(char *buf, size_t buf_size)

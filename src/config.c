@@ -50,6 +50,7 @@ static void config_apply_defaults(app_config_t *cfg)
 	cfg->audio.silence_threshold = 500;
 	cfg->audio.max_utterance_ms = 15000;
 	copy_str(cfg->runtime.log_level, sizeof(cfg->runtime.log_level), "info");
+	copy_str(cfg->runtime.dialog_mode, sizeof(cfg->runtime.dialog_mode), "manual");
 	cfg->runtime.reconnect_backoff_ms = 3000;
 }
 
@@ -102,6 +103,8 @@ static void config_assign_value(app_config_t *cfg, const char *section,
 	} else if (strcmp(section, "runtime") == 0) {
 		if (strcmp(key, "log_level") == 0)
 			copy_str(cfg->runtime.log_level, sizeof(cfg->runtime.log_level), value);
+		else if (strcmp(key, "dialog_mode") == 0)
+			copy_str(cfg->runtime.dialog_mode, sizeof(cfg->runtime.dialog_mode), value);
 		else if (strcmp(key, "reconnect_backoff_ms") == 0)
 			cfg->runtime.reconnect_backoff_ms = atoi(value);
 	}
@@ -131,6 +134,11 @@ static int config_validate(const app_config_t *cfg, char *err, size_t err_size)
 
 	if (cfg->server.protocol_version <= 0) {
 		set_error(err, err_size, "invalid server.protocol_version");
+		return -1;
+	}
+	if (strcmp(cfg->runtime.dialog_mode, "manual") != 0 &&
+	    strcmp(cfg->runtime.dialog_mode, "auto") != 0) {
+		set_error(err, err_size, "invalid runtime.dialog_mode");
 		return -1;
 	}
 

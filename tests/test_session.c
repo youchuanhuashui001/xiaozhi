@@ -62,6 +62,16 @@ static void test_manual_stop_stops_listen(void)
 	assert(s.state == SESSION_STATE_WAITING_TTS);
 }
 
+static void test_stt_result_stops_listen(void)
+{
+	session_t s;
+
+	session_init(&s);
+	s.state = SESSION_STATE_UPLOADING_AUDIO;
+	assert(session_handle_event(&s, APP_EVENT_STT_RESULT) == SESSION_ACTION_STOP_LISTEN);
+	assert(s.state == SESSION_STATE_WAITING_TTS);
+}
+
 static void test_silence_timeout_is_ignored_when_not_uploading(void)
 {
 	session_t s;
@@ -89,6 +99,7 @@ int main(void)
 	test_error_moves_to_backoff();
 	test_silence_timeout_is_ignored_while_uploading();
 	test_manual_stop_stops_listen();
+	test_stt_result_stops_listen();
 	test_silence_timeout_is_ignored_when_not_uploading();
 	test_barge_in_requests_abort();
 	return 0;

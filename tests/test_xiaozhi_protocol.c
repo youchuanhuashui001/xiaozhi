@@ -19,6 +19,12 @@ int main(void)
 
 	assert(xiaozhi_build_hello(&hello, json, sizeof(json)) == 0);
 	assert(strstr(json, "\"type\":\"hello\"") != NULL);
+	assert(strstr(json, "\"features\"") == NULL);
+	assert(xiaozhi_build_listen_start("abc123", json, sizeof(json)) == 0);
+	assert(strstr(json, "\"session_id\":\"abc123\"") != NULL);
+	assert(strstr(json, "\"state\":\"start\"") != NULL);
+	assert(strstr(json, "\"mode\":\"auto\"") != NULL);
+	assert(xiaozhi_build_listen_start(NULL, json, sizeof(json)) != 0);
 	assert(xiaozhi_build_listen_start_manual("abc123", json, sizeof(json)) == 0);
 	assert(strstr(json, "\"session_id\":\"abc123\"") != NULL);
 	assert(strstr(json, "\"state\":\"start\"") != NULL);

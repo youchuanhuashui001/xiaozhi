@@ -11,6 +11,8 @@
 
 static void app_reset_to_idle(app_runtime_t *app);
 static void app_log_manual_ready(void);
+static int app_is_auto_mode(const app_runtime_t *app);
+static void app_trigger_auto_listen_if_ready(app_runtime_t *app, const char *reason);
 static int app_bootstrap_ota(app_runtime_t *app);
 static void app_log_activation_required(const app_runtime_t *app);
 
@@ -310,8 +312,13 @@ static int app_send_listen_start(app_runtime_t *app)
 
 	if (!app || app->session_id[0] == '\0')
 		return -1;
-	if (xiaozhi_build_listen_start_manual(app->session_id, payload, sizeof(payload)) != 0)
-		return -1;
+	if (app_is_auto_mode(app)) {
+		if (xiaozhi_build_listen_start(app->session_id, payload, sizeof(payload)) != 0)
+			return -1;
+	} else {
+		if (xiaozhi_build_listen_start_manual(app->session_id, payload, sizeof(payload)) != 0)
+			return -1;
+	}
 	log_info("listen start payload: %s", payload);
 	return xiaozhi_client_queue_text(&app->client, payload);
 }
@@ -322,8 +329,13 @@ static int app_send_listen_stop(app_runtime_t *app)
 
 	if (!app || app->session_id[0] == '\0')
 		return -1;
-	if (xiaozhi_build_listen_stop_manual(app->session_id, payload, sizeof(payload)) != 0)
-		return -1;
+	if (app_is_auto_mode(app)) {
+		if (xiaozhi_build_listen_stop(payload, sizeof(payload)) != 0)
+			return -1;
+	} else {
+		if (xiaozhi_build_listen_stop_manual(app->session_id, payload, sizeof(payload)) != 0)
+			return -1;
+	}
 	log_info("listen stop payload: %s", payload);
 	return xiaozhi_client_queue_text(&app->client, payload);
 }
@@ -434,13 +446,32 @@ static void app_reset_to_idle(app_runtime_t *app)
 		app->session.state = SESSION_STATE_READY;
 	else
 		app->session.state = SESSION_STATE_IDLE;
-	if (app->session.state == SESSION_STATE_READY)
+	if (app->session.state == SESSION_STATE_READY && !app_is_auto_mode(app))
 		app_log_manual_ready();
 }
 
 static void app_log_manual_ready(void)
 {
 	log_info("ready for manual input; press Enter to talk, Enter again to stop, q then Enter to quit");
+}
+
+static int app_is_auto_mode(const app_runtime_t *app)
+{
+	return app && strcmp(app->config.runtime.dialog_mode, "auto") == 0;
+}
+
+static void app_trigger_auto_listen_if_ready(app_runtime_t *app, const char *reason)
+{
+	session_action_t action;
+
+	if (!app_is_auto_mode(app) || app->session.state != SESSION_STATE_READY)
+		return;
+
+	log_info("auto mode: starting listen%s%s",
+		 reason && reason[0] ? " after " : "",
+		 reason && reason[0] ? reason : "");
+	action = session_handle_event(&app->session, APP_EVENT_MANUAL_START);
+	app_handle_action(app, action);
 }
 
 static void app_update_decoder_from_hello(app_runtime_t *app,
@@ -474,12 +505,17 @@ static void app_handle_protocol_event(app_runtime_t *app,
 		app_update_decoder_from_hello(app, event);
 		action = session_handle_event(&app->session, APP_EVENT_WS_HELLO);
 		app_handle_action(app, action);
-		if (app->session.state == SESSION_STATE_READY)
+		if (app->session.state == SESSION_STATE_READY && !app_is_auto_mode(app))
 			app_log_manual_ready();
+		app_trigger_auto_listen_if_ready(app, "hello");
 		break;
 
 	case XIAOZHI_EVENT_STT:
 		log_info("stt: %s", event->text);
+		if (app_is_auto_mode(app)) {
+			action = session_handle_event(&app->session, APP_EVENT_STT_RESULT);
+			app_handle_action(app, action);
+		}
 		break;
 
 	case XIAOZHI_EVENT_LLM:
@@ -497,8 +533,10 @@ static void app_handle_protocol_event(app_runtime_t *app,
 	case XIAOZHI_EVENT_TTS_STOP:
 		log_info("tts stopped");
 		app->tts_done = 1;
-		if (audio_buffer_size(&app->playback.queue) == 0)
+		if (audio_buffer_size(&app->playback.queue) == 0) {
 			app_reset_to_idle(app);
+			app_trigger_auto_listen_if_ready(app, "tts stop");
+		}
 		break;
 
 	case XIAOZHI_EVENT_TTS_SENTENCE:
@@ -657,6 +695,8 @@ static void app_handle_manual_line(app_runtime_t *app, const char *line)
 		app_request_stop(app);
 		return;
 	}
+	if (app_is_auto_mode(app))
+		return;
 
 	if (strcmp(line, "\n") != 0 && strcmp(line, "\r\n") != 0)
 		return;
@@ -750,17 +790,20 @@ int app_run(app_runtime_t *app)
 		}
 
 		case APP_EVENT_CAPTURE_SILENCE_TIMEOUT:
-			log_info("silence timeout reached (%d ms, threshold=%d), ignored in manual mode",
+			log_info("silence timeout reached (%d ms, threshold=%d), ignored in %s mode",
 				 app->config.audio.silence_timeout_ms,
-				 app->config.audio.silence_threshold);
+				 app->config.audio.silence_threshold,
+				 app_is_auto_mode(app) ? "auto" : "manual");
 			app_handle_action(app,
 					 session_handle_event(&app->session,
 								  APP_EVENT_CAPTURE_SILENCE_TIMEOUT));
 			break;
 
 		case APP_EVENT_PLAYBACK_FINISHED:
-			if (app->tts_done)
+			if (app->tts_done) {
 				app_reset_to_idle(app);
+				app_trigger_auto_listen_if_ready(app, "playback finished");
+			}
 			break;
 
 		case APP_EVENT_ERROR:

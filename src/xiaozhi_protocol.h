@@ -35,7 +35,7 @@ typedef struct {
 
 int xiaozhi_build_hello(const xiaozhi_hello_config_t *cfg, char *buf, size_t buf_size);
 int xiaozhi_build_listen_detect(char *buf, size_t buf_size);
-int xiaozhi_build_listen_start(char *buf, size_t buf_size);
+int xiaozhi_build_listen_start(const char *session_id, char *buf, size_t buf_size);
 int xiaozhi_build_listen_stop(char *buf, size_t buf_size);
 int xiaozhi_build_listen_start_manual(const char *session_id, char *buf, size_t buf_size);
 int xiaozhi_build_listen_stop_manual(const char *session_id, char *buf, size_t buf_size);

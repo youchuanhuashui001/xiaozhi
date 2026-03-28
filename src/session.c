@@ -57,7 +57,8 @@ session_action_t session_handle_event(session_t *session, app_event_type_t event
 	case SESSION_STATE_UPLOADING_AUDIO:
 		if (event == APP_EVENT_WS_BINARY)
 			return SESSION_ACTION_NONE;
-		if (event == APP_EVENT_MANUAL_STOP) {
+		if (event == APP_EVENT_MANUAL_STOP ||
+		    event == APP_EVENT_STT_RESULT) {
 			session->state = SESSION_STATE_WAITING_TTS;
 			return SESSION_ACTION_STOP_LISTEN;
 		}

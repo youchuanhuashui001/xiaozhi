@@ -39,6 +39,7 @@ typedef struct {
 
 typedef struct {
 	char log_level[16];
+	char dialog_mode[16];
 	int reconnect_backoff_ms;
 } runtime_config_t;
 
