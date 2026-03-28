@@ -116,6 +116,26 @@ static void test_config_rejects_invalid_control_plane_port(void)
 	assert(strcmp(err, "invalid control_plane.port") == 0);
 }
 
+static void test_config_rejects_non_numeric_control_plane_port(void)
+{
+	const char *ini =
+		"[ota]\n"
+		"url=https://api.tenclass.net/xiaozhi/ota/\n"
+		"app_version=1.0.1\n"
+		"\n"
+		"[board]\n"
+		"type=bread-compact-wifi\n"
+		"name=bread-compact-wifi-128x64\n"
+		"\n"
+		"[control_plane]\n"
+		"port=19090abc\n";
+	app_config_t cfg = {0};
+	char err[128];
+
+	assert(config_load_from_string(ini, &cfg, err, sizeof(err)) != 0);
+	assert(strcmp(err, "invalid control_plane.port") == 0);
+}
+
 static void test_config_requires_ota_url(void)
 {
 	const char *ini =
@@ -158,6 +178,7 @@ int main(void)
 	test_config_parses_control_plane_settings();
 	test_config_parses_auto_dialog_mode();
 	test_config_rejects_invalid_control_plane_port();
+	test_config_rejects_non_numeric_control_plane_port();
 	test_config_requires_ota_url();
 	test_config_requires_ota_app_version();
 	return 0;

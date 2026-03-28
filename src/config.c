@@ -1,6 +1,8 @@
 #include "config.h"
 
 #include <ctype.h>
+#include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -36,6 +38,26 @@ static void copy_str(char *dst, size_t dst_size, const char *src)
 		return;
 
 	snprintf(dst, dst_size, "%s", src ? src : "");
+}
+
+static int parse_int_strict(const char *value, int *out)
+{
+	char *endptr;
+	long parsed;
+
+	if (!value || !out)
+		return -1;
+
+	errno = 0;
+	parsed = strtol(value, &endptr, 10);
+	if (errno != 0 || endptr == value || *endptr != '\0')
+		return -1;
+
+	if (parsed < INT_MIN || parsed > INT_MAX)
+		return -1;
+
+	*out = (int)parsed;
+	return 0;
 }
 
 static void config_apply_defaults(app_config_t *cfg)
@@ -113,7 +135,8 @@ static void config_assign_value(app_config_t *cfg, const char *section,
 		if (strcmp(key, "bind_host") == 0)
 			copy_str(cfg->control_plane.bind_host, sizeof(cfg->control_plane.bind_host), value);
 		else if (strcmp(key, "port") == 0)
-			cfg->control_plane.port = atoi(value);
+			if (parse_int_strict(value, &cfg->control_plane.port) != 0)
+				cfg->control_plane.port = -1;
 	}
 }
 
