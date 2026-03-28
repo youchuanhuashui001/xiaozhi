@@ -104,6 +104,18 @@ void ControlClient::handleSocketDisconnected()
 
 void ControlClient::handleTextMessage(const QString &message)
 {
+    QJsonDocument doc = QJsonDocument::fromJson(message.toUtf8());
+    if (doc.isObject()) {
+        const QJsonObject root = doc.object();
+        if (root.value(QStringLiteral("type")).toString() == QStringLiteral("event") &&
+            root.value(QStringLiteral("name")).toString() == QStringLiteral("state_changed")) {
+            const QJsonObject payload = root.value(QStringLiteral("payload")).toObject();
+            if (payload.value(QStringLiteral("state")).isString()) {
+                setConnectionState(payload.value(QStringLiteral("state")).toString());
+            }
+        }
+    }
+
     emit jsonMessageReceived(message);
 }
 

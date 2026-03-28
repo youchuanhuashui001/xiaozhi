@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "app.h"
@@ -41,6 +42,19 @@ static void test_daemon_runtime_tracks_last_command(void)
 		       "{\"type\":\"command\",\"name\":\"connect_server\",\"request_id\":\"req-2\",\"payload\":{}}") == 0);
 	assert(rt.last_command == DAEMON_RUNTIME_COMMAND_CONNECT_SERVER);
 	assert(strcmp(rt.last_control_command.request_id, "req-2") == 0);
+	assert(strstr(control_plane_server_last_outbound_json(&server),
+		      "\"type\":\"command_ack\"") != NULL);
+	assert(strstr(control_plane_server_last_outbound_json(&server),
+		      "\"name\":\"connect_server\"") != NULL);
+
+	assert(control_plane_server_dispatch_json(
+		       &server,
+		       "{\"type\":\"command\",\"name\":\"subscribe_events\",\"payload\":{}}") == 0);
+	assert(strstr(control_plane_server_last_outbound_json(&server),
+		      "\"name\":\"state_changed\"") != NULL);
+	assert(strstr(control_plane_server_last_outbound_json(&server),
+		      "\"state\":\"idle\"") != NULL);
+	puts(control_plane_server_last_outbound_json(&server));
 
 	control_plane_server_stop(&server);
 }
