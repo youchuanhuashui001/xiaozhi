@@ -206,6 +206,24 @@ void audio_capture_set_uploading(audio_capture_t *cap, int enabled)
 	pthread_mutex_unlock(&cap->mutex);
 }
 
+void audio_capture_update_silence(audio_capture_t *cap, int timeout_ms, int threshold)
+{
+	if (!cap)
+		return;
+
+	if (timeout_ms < 0)
+		timeout_ms = 1200;
+	if (threshold < 0)
+		threshold = 500;
+
+	pthread_mutex_lock(&cap->mutex);
+	cap->config.silence_timeout_ms = timeout_ms;
+	cap->config.silence_threshold = threshold;
+	if (!cap->uploading)
+		cap->silence_accumulator_ms = 0;
+	pthread_mutex_unlock(&cap->mutex);
+}
+
 void audio_capture_stop(audio_capture_t *cap)
 {
 	if (!cap)
