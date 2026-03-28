@@ -38,13 +38,6 @@ typedef struct {
 } audio_config_t;
 
 typedef struct {
-	char resource_path[256];
-	char model_path[256];
-	float sensitivity;
-	float audio_gain;
-} snowboy_config_t;
-
-typedef struct {
 	char log_level[16];
 	int reconnect_backoff_ms;
 } runtime_config_t;
@@ -55,7 +48,6 @@ typedef struct {
 	device_config_t device;
 	board_config_t board;
 	audio_config_t audio;
-	snowboy_config_t snowboy;
 	runtime_config_t runtime;
 } app_config_t;
 

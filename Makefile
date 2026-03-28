@@ -18,9 +18,15 @@ OPUS_LDFLAGS	:= $(shell pkg-config --libs opus 2>/dev/null)
 ALSA_CFLAGS	:= $(shell pkg-config --cflags alsa 2>/dev/null)
 ALSA_LDFLAGS	:= $(shell pkg-config --libs alsa 2>/dev/null)
 
-COMMON_CFLAGS	:= -Wall -Wextra -std=c11 -D_GNU_SOURCE -Isrc $(LWS_CFLAGS) $(OPUS_CFLAGS) $(ALSA_CFLAGS)
+DEBUG		?= 0
+DEBUG_FLAGS	:=
+ifeq ($(DEBUG),1)
+DEBUG_FLAGS	:= -g -O0
+endif
+
+COMMON_CFLAGS	:= -Wall -Wextra -std=c11 -D_GNU_SOURCE -Isrc $(LWS_CFLAGS) $(OPUS_CFLAGS) $(ALSA_CFLAGS) $(DEBUG_FLAGS)
 CFLAGS		:= $(COMMON_CFLAGS)
-CXXFLAGS	:= -Wall -Wextra -std=c++11 -D_GNU_SOURCE -Isrc $(LWS_CFLAGS) $(OPUS_CFLAGS) $(ALSA_CFLAGS)
+CXXFLAGS	:= -Wall -Wextra -std=c++11 -D_GNU_SOURCE -Isrc $(LWS_CFLAGS) $(OPUS_CFLAGS) $(ALSA_CFLAGS) $(DEBUG_FLAGS)
 LDFLAGS		:= $(LWS_LDFLAGS) $(OPUS_LDFLAGS) $(ALSA_LDFLAGS) -lpthread
 DEPFLAGS	:= -MMD -MP
 

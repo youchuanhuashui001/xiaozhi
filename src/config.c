@@ -49,10 +49,6 @@ static void config_apply_defaults(app_config_t *cfg)
 	cfg->audio.silence_timeout_ms = 1200;
 	cfg->audio.silence_threshold = 500;
 	cfg->audio.max_utterance_ms = 15000;
-	copy_str(cfg->snowboy.resource_path, sizeof(cfg->snowboy.resource_path),
-		 "lib/snowboy/snowboy/resources/common.res");
-	cfg->snowboy.sensitivity = 0.5f;
-	cfg->snowboy.audio_gain = 1.0f;
 	copy_str(cfg->runtime.log_level, sizeof(cfg->runtime.log_level), "info");
 	cfg->runtime.reconnect_backoff_ms = 3000;
 }
@@ -103,15 +99,6 @@ static void config_assign_value(app_config_t *cfg, const char *section,
 			cfg->audio.silence_threshold = atoi(value);
 		else if (strcmp(key, "max_utterance_ms") == 0)
 			cfg->audio.max_utterance_ms = atoi(value);
-	} else if (strcmp(section, "snowboy") == 0) {
-		if (strcmp(key, "resource") == 0)
-			copy_str(cfg->snowboy.resource_path, sizeof(cfg->snowboy.resource_path), value);
-		else if (strcmp(key, "model") == 0)
-			copy_str(cfg->snowboy.model_path, sizeof(cfg->snowboy.model_path), value);
-		else if (strcmp(key, "sensitivity") == 0)
-			cfg->snowboy.sensitivity = strtof(value, NULL);
-		else if (strcmp(key, "audio_gain") == 0)
-			cfg->snowboy.audio_gain = strtof(value, NULL);
 	} else if (strcmp(section, "runtime") == 0) {
 		if (strcmp(key, "log_level") == 0)
 			copy_str(cfg->runtime.log_level, sizeof(cfg->runtime.log_level), value);
