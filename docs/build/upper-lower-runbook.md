@@ -26,6 +26,10 @@
 
 3. 在 GUI 中进入 `Connection Settings` 页面，点击 `Test Connection`。
 
+说明：
+- GUI 默认控制面地址为 `ws://127.0.0.1:19090`。
+- GUI 建连后会自动发送 `subscribe_events` 订阅状态事件。
+
 ## 3. Auto 模式链路（观察点）
 
 当前核心 auto 模式行为：
