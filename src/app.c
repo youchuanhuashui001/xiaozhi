@@ -39,85 +39,6 @@ static void app_log_ws_request_headers(const app_runtime_t *app)
 	log_info("Client-Id: %s", app->config.device.client_id);
 }
 
-static int app_open_opus_dump_file(app_runtime_t *app)
-{
-	FILE *fp;
-
-	if (!app)
-		return -1;
-
-	pthread_mutex_lock(&app->opus_dump_mutex);
-	if (app->opus_dump_file) {
-		fclose(app->opus_dump_file);
-		app->opus_dump_file = NULL;
-	}
-
-	app->opus_dump_index++;
-	snprintf(app->opus_dump_path, sizeof(app->opus_dump_path),
-		 "build/upload_%03d.opusbin", app->opus_dump_index);
-	fp = fopen(app->opus_dump_path, "wb");
-	if (!fp) {
-		snprintf(app->opus_dump_path, sizeof(app->opus_dump_path),
-			 "/tmp/xiaozhi-upload-%03d.opusbin", app->opus_dump_index);
-		fp = fopen(app->opus_dump_path, "wb");
-	}
-	app->opus_dump_file = fp;
-	pthread_mutex_unlock(&app->opus_dump_mutex);
-
-	if (!fp)
-		return -1;
-
-	log_info("recording opus upload frames to %s", app->opus_dump_path);
-	return 0;
-}
-
-static void app_close_opus_dump_file(app_runtime_t *app)
-{
-	int had_file = 0;
-
-	if (!app || !app->opus_dump_mutex_initialized)
-		return;
-
-	pthread_mutex_lock(&app->opus_dump_mutex);
-	if (app->opus_dump_file) {
-		fclose(app->opus_dump_file);
-		app->opus_dump_file = NULL;
-		had_file = 1;
-	}
-	pthread_mutex_unlock(&app->opus_dump_mutex);
-
-	if (had_file)
-		log_info("opus upload dump saved: %s", app->opus_dump_path);
-}
-
-static int app_write_opus_packet(app_runtime_t *app, const uint8_t *packet, size_t len)
-{
-	uint8_t header[2];
-	FILE *fp;
-
-	if (!app || !packet || len == 0 || len > 65535 || !app->opus_dump_mutex_initialized)
-		return -1;
-
-	header[0] = (uint8_t)(len & 0xFF);
-	header[1] = (uint8_t)((len >> 8) & 0xFF);
-
-	pthread_mutex_lock(&app->opus_dump_mutex);
-	fp = app->opus_dump_file;
-	if (!fp) {
-		pthread_mutex_unlock(&app->opus_dump_mutex);
-		return -1;
-	}
-
-	if (fwrite(header, 1, sizeof(header), fp) != sizeof(header) ||
-	    fwrite(packet, 1, len, fp) != len) {
-		pthread_mutex_unlock(&app->opus_dump_mutex);
-		return -1;
-	}
-	fflush(fp);
-	pthread_mutex_unlock(&app->opus_dump_mutex);
-	return 0;
-}
-
 static void app_push_event(app_runtime_t *app, app_event_type_t type,
 			   const char *text, int code)
 {
@@ -278,10 +199,6 @@ static void app_capture_on_pcm(void *ctx, const int16_t *pcm, size_t frames)
 		packet_len = opus_encode_frame(&app->encoder, pcm, (int)frames,
 					      packet, sizeof(packet));
 		if (packet_len > 0) {
-			if (app_write_opus_packet(app, packet, (size_t)packet_len) != 0 &&
-			    app->upload_enabled) {
-				log_warn("failed to dump opus frame to file");
-			}
 			if (xiaozhi_client_queue_binary(&app->client, packet,
 							(size_t)packet_len) != 0) {
 				log_warn("failed to queue opus frame for websocket upload");
@@ -375,10 +292,6 @@ static void app_handle_action(app_runtime_t *app, session_action_t action)
 			app_push_event(app, APP_EVENT_ERROR, "failed to queue listen start", -1);
 			break;
 		}
-		if (app_open_opus_dump_file(app) != 0) {
-			app_push_event(app, APP_EVENT_ERROR, "failed to open opus dump file", -1);
-			break;
-		}
 		app->upload_enabled = 1;
 		app->session.state = SESSION_STATE_UPLOADING_AUDIO;
 		audio_capture_set_uploading(&app->capture, 1);
@@ -388,7 +301,6 @@ static void app_handle_action(app_runtime_t *app, session_action_t action)
 		log_info("stopping audio upload");
 		app->upload_enabled = 0;
 		audio_capture_set_uploading(&app->capture, 0);
-		app_close_opus_dump_file(app);
 		if (app_send_listen_stop(app) != 0)
 			app_push_event(app, APP_EVENT_ERROR, "failed to queue listen stop", -1);
 		break;
@@ -397,7 +309,6 @@ static void app_handle_action(app_runtime_t *app, session_action_t action)
 		log_info("interrupting current response");
 		app->upload_enabled = 0;
 		audio_capture_set_uploading(&app->capture, 0);
-		app_close_opus_dump_file(app);
 		(void)app_send_abort(app);
 		audio_playback_request_stop(&app->playback);
 		if (app->client_started)
@@ -417,7 +328,6 @@ static void app_handle_action(app_runtime_t *app, session_action_t action)
 		app->upload_enabled = 0;
 		app->tts_done = 0;
 		audio_capture_set_uploading(&app->capture, 0);
-		app_close_opus_dump_file(app);
 		app->session_id[0] = '\0';
 		if (app->client_started) {
 			xiaozhi_client_stop(&app->client);
@@ -441,7 +351,6 @@ static void app_reset_to_idle(app_runtime_t *app)
 	app->upload_enabled = 0;
 	app->tts_done = 0;
 	audio_capture_set_uploading(&app->capture, 0);
-	app_close_opus_dump_file(app);
 	if (app->client_started && xiaozhi_client_is_connected(&app->client))
 		app->session.state = SESSION_STATE_READY;
 	else
@@ -564,9 +473,6 @@ static int app_init_runtime_modules(app_runtime_t *app)
 	xiaozhi_client_callbacks_t callbacks;
 	audio_capture_config_t capture_cfg;
 	audio_playback_config_t playback_cfg;
-
-	pthread_mutex_init(&app->opus_dump_mutex, NULL);
-	app->opus_dump_mutex_initialized = 1;
 
 	memset(&client_cfg, 0, sizeof(client_cfg));
 	snprintf(client_cfg.url, sizeof(client_cfg.url), "%s",
@@ -842,7 +748,6 @@ void app_destroy(app_runtime_t *app)
 		return;
 
 	if (!app->check_only && app->runtime_modules_initialized) {
-		app_close_opus_dump_file(app);
 		if (app->client_started)
 			xiaozhi_client_stop(&app->client);
 		audio_capture_stop(&app->capture);
@@ -850,10 +755,6 @@ void app_destroy(app_runtime_t *app)
 		opus_encoder_wrapper_destroy(&app->encoder);
 		opus_decoder_wrapper_destroy(&app->decoder);
 		xiaozhi_client_destroy(&app->client);
-	}
-	if (app->opus_dump_mutex_initialized) {
-		pthread_mutex_destroy(&app->opus_dump_mutex);
-		app->opus_dump_mutex_initialized = 0;
 	}
 
 	event_queue_destroy(&app->events);

@@ -1,8 +1,6 @@
 #ifndef APP_H
 #define APP_H
 
-#include <stdio.h>
-
 #include "audio_capture.h"
 #include "audio_playback.h"
 #include "config.h"
@@ -41,11 +39,6 @@ typedef struct {
 	int upload_enabled;
 	int decoder_sample_rate;
 	int tts_done;
-	pthread_mutex_t opus_dump_mutex;
-	int opus_dump_mutex_initialized;
-	FILE *opus_dump_file;
-	int opus_dump_index;
-	char opus_dump_path[256];
 	char session_id[64];
 } app_runtime_t;
 
