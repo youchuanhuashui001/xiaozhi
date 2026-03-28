@@ -17,6 +17,16 @@ int main(void)
 	assert(strcmp(cmd.request_id, "req-1") == 0);
 	assert(strcmp(cmd.payload, "{}") == 0);
 
+	strcpy(json, "{\"type\":\"command\",\"name\":\"connect_server\"}garbage");
+	assert(control_protocol_parse_command(json, &cmd) != 0);
+
+	strcpy(json, "{\"type\":\"command\",\"name\":\"connect_server\",\"request_id\":1}");
+	assert(control_protocol_parse_command(json, &cmd) != 0);
+
+	strcpy(json, "{\"type\":\"command\",\"name\":\"connect_server\",\"payload\":\"abc\"}");
+	assert(control_protocol_parse_command(json, &cmd) == 0);
+	assert(strcmp(cmd.payload, "\"abc\"") == 0);
+
 	strcpy(event.type, "event");
 	strcpy(event.name, "state_changed");
 	strcpy(event.request_id, "req-2");
@@ -30,6 +40,9 @@ int main(void)
 	assert(strstr(out, "\"ok\":true") != NULL);
 	assert(strstr(out, "\"message\":\"ready\"") != NULL);
 	assert(strstr(out, "\"state\":\"ready\"") != NULL);
+
+	event.name[0] = '\0';
+	assert(control_protocol_build_event(&event, out, sizeof(out)) != 0);
 
 	return 0;
 }
