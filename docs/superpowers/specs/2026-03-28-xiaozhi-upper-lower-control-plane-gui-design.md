@@ -168,6 +168,11 @@
 5. `test_connection`
 6. `shutdown_client`
 
+说明：
+
+1. 首版控制面不提供手动 `listen start/stop` 命令。
+2. 自动模式由下位机核心持续驱动，GUI 仅发连接/配置/退出类命令。
+
 命令处理结果使用 `command_ack` 返回：
 
 ```json
@@ -196,13 +201,14 @@
 以下流程由下位机核心保持，GUI 仅订阅显示：
 
 1. 下位机连接云端并发送 `hello`。
-2. 收到服务器 `hello` 后记录 `session_id` 并触发 `listen start`（mode=auto，携带 `session_id`）。
-3. 下位机开始持续上行 Opus 二进制帧。
-4. 收到 `stt` 后，立即关闭上行录音并发送 `listen stop`。
-5. 收到 `tts/start` 后进入播放态并推送 `tts_state:start` 给 GUI。
-6. 收到 `tts/stop` 后标记 TTS 完成；当播放缓冲清空，推送播放完成状态。
-7. 下位机自动回到监听态，开始下一轮 `listen start`。
-8. 自动模式下静音超时仅记录日志，不触发主动停录动作。
+2. `hello` 按既有约束不携带 `mcp` 字段。
+3. 收到服务器 `hello` 后记录 `session_id` 并触发 `listen start`（mode=auto，携带 `session_id`）。
+4. 下位机开始持续上行 Opus 二进制帧。
+5. 收到 `stt` 后，立即关闭上行录音并发送 `listen stop`。
+6. 收到 `tts/start` 后进入播放态并推送 `tts_state:start` 给 GUI。
+7. 收到 `tts/stop` 后标记 TTS 完成；当播放缓冲清空，推送播放完成状态。
+8. 下位机自动回到监听态，开始下一轮 `listen start`。
+9. 自动模式下静音超时仅记录日志，不触发主动停录动作。
 
 ## 9. 错误处理与恢复
 
