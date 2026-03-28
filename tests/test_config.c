@@ -47,9 +47,33 @@ static void test_config_applies_defaults(void)
 	assert(cfg.server.protocol_version == 1);
 	assert(cfg.audio.input_sample_rate == 16000);
 	assert(cfg.audio.silence_threshold == 500);
+	assert(strcmp(cfg.control_plane.bind_host, "127.0.0.1") == 0);
+	assert(cfg.control_plane.port == 19090);
 	assert(strcmp(cfg.ota.accept_language, "") == 0);
 	assert(strcmp(cfg.ota.app_version, "1.0.1") == 0);
 	assert(strcmp(cfg.runtime.dialog_mode, "manual") == 0);
+}
+
+static void test_config_parses_control_plane_settings(void)
+{
+	const char *ini =
+		"[ota]\n"
+		"url=https://api.tenclass.net/xiaozhi/ota/\n"
+		"app_version=1.0.1\n"
+		"\n"
+		"[board]\n"
+		"type=bread-compact-wifi\n"
+		"name=bread-compact-wifi-128x64\n"
+		"\n"
+		"[control_plane]\n"
+		"bind_host=0.0.0.0\n"
+		"port=19091\n";
+	app_config_t cfg = {0};
+	char err[128];
+
+	assert(config_load_from_string(ini, &cfg, err, sizeof(err)) == 0);
+	assert(strcmp(cfg.control_plane.bind_host, "0.0.0.0") == 0);
+	assert(cfg.control_plane.port == 19091);
 }
 
 static void test_config_parses_auto_dialog_mode(void)
@@ -70,6 +94,46 @@ static void test_config_parses_auto_dialog_mode(void)
 
 	assert(config_load_from_string(ini, &cfg, err, sizeof(err)) == 0);
 	assert(strcmp(cfg.runtime.dialog_mode, "auto") == 0);
+}
+
+static void test_config_rejects_invalid_control_plane_port(void)
+{
+	const char *ini =
+		"[ota]\n"
+		"url=https://api.tenclass.net/xiaozhi/ota/\n"
+		"app_version=1.0.1\n"
+		"\n"
+		"[board]\n"
+		"type=bread-compact-wifi\n"
+		"name=bread-compact-wifi-128x64\n"
+		"\n"
+		"[control_plane]\n"
+		"port=0\n";
+	app_config_t cfg = {0};
+	char err[128];
+
+	assert(config_load_from_string(ini, &cfg, err, sizeof(err)) != 0);
+	assert(strcmp(err, "invalid control_plane.port") == 0);
+}
+
+static void test_config_rejects_non_numeric_control_plane_port(void)
+{
+	const char *ini =
+		"[ota]\n"
+		"url=https://api.tenclass.net/xiaozhi/ota/\n"
+		"app_version=1.0.1\n"
+		"\n"
+		"[board]\n"
+		"type=bread-compact-wifi\n"
+		"name=bread-compact-wifi-128x64\n"
+		"\n"
+		"[control_plane]\n"
+		"port=19090abc\n";
+	app_config_t cfg = {0};
+	char err[128];
+
+	assert(config_load_from_string(ini, &cfg, err, sizeof(err)) != 0);
+	assert(strcmp(err, "invalid control_plane.port") == 0);
 }
 
 static void test_config_requires_ota_url(void)
@@ -111,7 +175,10 @@ int main(void)
 {
 	test_config_allows_empty_server_token();
 	test_config_applies_defaults();
+	test_config_parses_control_plane_settings();
 	test_config_parses_auto_dialog_mode();
+	test_config_rejects_invalid_control_plane_port();
+	test_config_rejects_non_numeric_control_plane_port();
 	test_config_requires_ota_url();
 	test_config_requires_ota_app_version();
 	return 0;

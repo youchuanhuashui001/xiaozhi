@@ -6,6 +6,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "cJSON.h"
 #include "log.h"
 #include "xiaozhi_protocol.h"
 
@@ -15,6 +16,16 @@ static int app_is_auto_mode(const app_runtime_t *app);
 static void app_trigger_auto_listen_if_ready(app_runtime_t *app, const char *reason);
 static int app_bootstrap_ota(app_runtime_t *app);
 static void app_log_activation_required(const app_runtime_t *app);
+static void app_notify_observer(app_runtime_t *app,
+				 const app_observer_event_t *event);
+static void app_notify_error(app_runtime_t *app, const char *text, int code);
+static void app_notify_protocol_event(app_runtime_t *app,
+					 const xiaozhi_incoming_event_t *event);
+static void app_publish_state_if_changed(app_runtime_t *app);
+static int app_apply_server_config_payload(app_runtime_t *app,
+					   const char *payload_json);
+static int app_apply_audio_config_payload(app_runtime_t *app,
+					  const char *payload_json);
 
 static void app_log_ws_request_headers(const app_runtime_t *app)
 {
@@ -51,6 +62,179 @@ static void app_push_event(app_runtime_t *app, app_event_type_t type,
 		snprintf(event.text, sizeof(event.text), "%s", text);
 	event.data_len = text ? strlen(event.text) : 0;
 	(void)event_queue_push(&app->events, &event);
+}
+
+static void app_notify_observer(app_runtime_t *app,
+				 const app_observer_event_t *event)
+{
+	if (!app || !event || !app->observer_fn)
+		return;
+
+	app->observer_fn(event, app->observer_ctx);
+}
+
+static void app_notify_error(app_runtime_t *app, const char *text, int code)
+{
+	app_observer_event_t event;
+
+	if (!app)
+		return;
+
+	memset(&event, 0, sizeof(event));
+	event.kind = APP_OBSERVER_EVENT_ERROR;
+	event.state = app->session.state;
+	event.code = code;
+	if (text)
+		snprintf(event.text, sizeof(event.text), "%s", text);
+	app_notify_observer(app, &event);
+}
+
+static void app_notify_protocol_event(app_runtime_t *app,
+					 const xiaozhi_incoming_event_t *protocol)
+{
+	app_observer_event_t event;
+
+	if (!app || !protocol)
+		return;
+
+	memset(&event, 0, sizeof(event));
+	event.kind = APP_OBSERVER_EVENT_PROTOCOL;
+	event.state = app->session.state;
+	event.protocol = *protocol;
+	if (protocol->text[0] != '\0')
+		snprintf(event.text, sizeof(event.text), "%s", protocol->text);
+	app_notify_observer(app, &event);
+}
+
+static void app_publish_state_if_changed(app_runtime_t *app)
+{
+	app_observer_event_t event;
+
+	if (!app)
+		return;
+
+	if (app->observer_state_valid &&
+	    app->observer_last_state == app->session.state)
+		return;
+
+	app->observer_last_state = app->session.state;
+	app->observer_state_valid = 1;
+
+	memset(&event, 0, sizeof(event));
+	event.kind = APP_OBSERVER_EVENT_STATE_CHANGED;
+	event.state = app->session.state;
+	app_notify_observer(app, &event);
+}
+
+static void app_update_client_config_from_runtime(app_runtime_t *app)
+{
+	if (!app)
+		return;
+
+	snprintf(app->client.config.url, sizeof(app->client.config.url), "%s",
+		 app->config.server.url);
+	app->client.config.protocol_version = app->config.server.protocol_version;
+	if (app->config.server.token[0] != '\0') {
+		snprintf(app->client.config.authorization,
+			 sizeof(app->client.config.authorization),
+			 "Bearer %.240s", app->config.server.token);
+	} else {
+		app->client.config.authorization[0] = '\0';
+	}
+}
+
+static int app_apply_server_config_payload(app_runtime_t *app,
+					   const char *payload_json)
+{
+	cJSON *payload;
+	cJSON *url;
+	cJSON *token;
+	cJSON *protocol_version;
+
+	if (!app || !payload_json)
+		return -1;
+
+	payload = cJSON_Parse(payload_json);
+	if (!payload || !cJSON_IsObject(payload)) {
+		cJSON_Delete(payload);
+		return -1;
+	}
+
+	url = cJSON_GetObjectItemCaseSensitive(payload, "url");
+	token = cJSON_GetObjectItemCaseSensitive(payload, "token");
+	protocol_version =
+		cJSON_GetObjectItemCaseSensitive(payload, "protocol_version");
+
+	if (cJSON_IsString(url) && url->valuestring) {
+		snprintf(app->config.server.url, sizeof(app->config.server.url), "%s",
+			 url->valuestring);
+	}
+	if (cJSON_IsString(token) && token->valuestring) {
+		snprintf(app->config.server.token, sizeof(app->config.server.token),
+			 "%s", token->valuestring);
+	}
+	if (cJSON_IsNumber(protocol_version) &&
+	    protocol_version->valueint > 0) {
+		app->config.server.protocol_version = protocol_version->valueint;
+	}
+
+	cJSON_Delete(payload);
+
+	if (app->config.server.url[0] == '\0' ||
+	    app->config.server.protocol_version <= 0)
+		return -1;
+
+	if (app->runtime_modules_initialized)
+		app_update_client_config_from_runtime(app);
+
+	return 0;
+}
+
+static int app_apply_audio_config_payload(app_runtime_t *app,
+					  const char *payload_json)
+{
+	cJSON *payload;
+	cJSON *timeout_ms;
+	cJSON *threshold;
+	cJSON *capture_device;
+	cJSON *playback_device;
+
+	if (!app || !payload_json)
+		return -1;
+
+	payload = cJSON_Parse(payload_json);
+	if (!payload || !cJSON_IsObject(payload)) {
+		cJSON_Delete(payload);
+		return -1;
+	}
+
+	timeout_ms = cJSON_GetObjectItemCaseSensitive(payload, "silence_timeout_ms");
+	threshold = cJSON_GetObjectItemCaseSensitive(payload, "silence_threshold");
+	capture_device = cJSON_GetObjectItemCaseSensitive(payload, "capture_device");
+	playback_device = cJSON_GetObjectItemCaseSensitive(payload, "playback_device");
+
+	if (cJSON_IsNumber(timeout_ms) && timeout_ms->valueint >= 0)
+		app->config.audio.silence_timeout_ms = timeout_ms->valueint;
+	if (cJSON_IsNumber(threshold) && threshold->valueint >= 0)
+		app->config.audio.silence_threshold = threshold->valueint;
+	if (cJSON_IsString(capture_device) && capture_device->valuestring)
+		snprintf(app->config.audio.capture_device,
+			 sizeof(app->config.audio.capture_device), "%s",
+			 capture_device->valuestring);
+	if (cJSON_IsString(playback_device) && playback_device->valuestring)
+		snprintf(app->config.audio.playback_device,
+			 sizeof(app->config.audio.playback_device), "%s",
+			 playback_device->valuestring);
+
+	cJSON_Delete(payload);
+
+	if (app->runtime_modules_initialized) {
+		audio_capture_update_silence(&app->capture,
+					     app->config.audio.silence_timeout_ms,
+					     app->config.audio.silence_threshold);
+	}
+
+	return 0;
 }
 
 static log_level_t app_parse_log_level(const char *name)
@@ -344,6 +528,8 @@ static void app_handle_action(app_runtime_t *app, session_action_t action)
 	default:
 		break;
 	}
+
+	app_publish_state_if_changed(app);
 }
 
 static void app_reset_to_idle(app_runtime_t *app)
@@ -357,6 +543,7 @@ static void app_reset_to_idle(app_runtime_t *app)
 		app->session.state = SESSION_STATE_IDLE;
 	if (app->session.state == SESSION_STATE_READY && !app_is_auto_mode(app))
 		app_log_manual_ready();
+	app_publish_state_if_changed(app);
 }
 
 static void app_log_manual_ready(void)
@@ -403,6 +590,8 @@ static void app_handle_protocol_event(app_runtime_t *app,
 				      const xiaozhi_incoming_event_t *event)
 {
 	session_action_t action = SESSION_ACTION_NONE;
+
+	app_notify_protocol_event(app, event);
 
 	switch (event->type) {
 	case XIAOZHI_EVENT_HELLO:
@@ -465,6 +654,8 @@ static void app_handle_protocol_event(app_runtime_t *app,
 		log_warn("received unknown protocol event");
 		break;
 	}
+
+	app_publish_state_if_changed(app);
 }
 
 static int app_init_runtime_modules(app_runtime_t *app)
@@ -569,6 +760,7 @@ int app_init(app_runtime_t *app, const app_options_t *opts)
 		return -1;
 
 	session_init(&app->session);
+	app_publish_state_if_changed(app);
 	app->check_only = app->options.check_only;
 	app->skip_runtime_init = app->options.skip_runtime_init;
 	app->initialized = 1;
@@ -717,6 +909,49 @@ int app_run(app_runtime_t *app)
 			app_handle_action(app,
 					 session_handle_event(&app->session,
 								  APP_EVENT_ERROR));
+			app_notify_error(app, event.text, event.code);
+			break;
+
+		case APP_EVENT_CONTROL_CONNECT:
+			if (!app->client_started) {
+				app->session.state = SESSION_STATE_CONNECTING;
+				app_handle_action(app, SESSION_ACTION_CONNECT);
+			}
+			break;
+
+		case APP_EVENT_CONTROL_DISCONNECT:
+			if (app->client_started) {
+				xiaozhi_client_stop(&app->client);
+				app->client_started = 0;
+			}
+			app_reset_to_idle(app);
+			break;
+
+		case APP_EVENT_CONTROL_SET_SERVER_CONFIG:
+			if (app_apply_server_config_payload(app, event.text) != 0) {
+				log_warn("invalid set_server_config payload: %s", event.text);
+				break;
+			}
+			if (app->client_started) {
+				xiaozhi_client_stop(&app->client);
+				app->client_started = 0;
+			}
+			app_reset_to_idle(app);
+			app->session.state = SESSION_STATE_CONNECTING;
+			app_handle_action(app, SESSION_ACTION_CONNECT);
+			break;
+
+		case APP_EVENT_CONTROL_SET_AUDIO_CONFIG:
+			if (app_apply_audio_config_payload(app, event.text) != 0)
+				log_warn("invalid set_audio_config payload: %s", event.text);
+			break;
+
+		case APP_EVENT_CONTROL_TEST_CONNECTION:
+			app_push_event(app, APP_EVENT_CONTROL_CONNECT, NULL, 0);
+			break;
+
+		case APP_EVENT_CONTROL_SHUTDOWN:
+			app->stop_requested = 1;
 			break;
 
 		case APP_EVENT_SHUTDOWN:
@@ -730,6 +965,72 @@ int app_run(app_runtime_t *app)
 		app_poll_stdin(app);
 	}
 
+	return 0;
+}
+
+int app_set_observer(app_runtime_t *app, app_observer_fn fn, void *ctx)
+{
+	if (!app)
+		return -1;
+
+	app->observer_fn = fn;
+	app->observer_ctx = ctx;
+	app->observer_state_valid = 0;
+	app_publish_state_if_changed(app);
+	return 0;
+}
+
+int app_control_connect(app_runtime_t *app)
+{
+	if (!app || !app->initialized || app->check_only || app->skip_runtime_init)
+		return -1;
+
+	app_push_event(app, APP_EVENT_CONTROL_CONNECT, NULL, 0);
+	return 0;
+}
+
+int app_control_disconnect(app_runtime_t *app)
+{
+	if (!app || !app->initialized)
+		return -1;
+
+	app_push_event(app, APP_EVENT_CONTROL_DISCONNECT, NULL, 0);
+	return 0;
+}
+
+int app_control_set_server_config(app_runtime_t *app, const char *payload_json)
+{
+	if (!app || !app->initialized || !payload_json)
+		return -1;
+
+	app_push_event(app, APP_EVENT_CONTROL_SET_SERVER_CONFIG, payload_json, 0);
+	return 0;
+}
+
+int app_control_set_audio_config(app_runtime_t *app, const char *payload_json)
+{
+	if (!app || !app->initialized || !payload_json)
+		return -1;
+
+	app_push_event(app, APP_EVENT_CONTROL_SET_AUDIO_CONFIG, payload_json, 0);
+	return 0;
+}
+
+int app_control_test_connection(app_runtime_t *app)
+{
+	if (!app || !app->initialized)
+		return -1;
+
+	app_push_event(app, APP_EVENT_CONTROL_TEST_CONNECTION, NULL, 0);
+	return 0;
+}
+
+int app_control_shutdown(app_runtime_t *app)
+{
+	if (!app || !app->initialized)
+		return -1;
+
+	app_push_event(app, APP_EVENT_CONTROL_SHUTDOWN, NULL, 0);
 	return 0;
 }
 

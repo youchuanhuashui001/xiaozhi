@@ -34,6 +34,7 @@ int audio_capture_start(audio_capture_t *cap, const audio_capture_config_t *cfg,
 			audio_capture_pcm_cb cb, void *cb_ctx,
 			event_queue_t *events);
 void audio_capture_set_uploading(audio_capture_t *cap, int enabled);
+void audio_capture_update_silence(audio_capture_t *cap, int timeout_ms, int threshold);
 void audio_capture_stop(audio_capture_t *cap);
 
 #endif /* AUDIO_CAPTURE_H */

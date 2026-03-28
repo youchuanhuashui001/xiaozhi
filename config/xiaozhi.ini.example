@@ -32,3 +32,7 @@ max_utterance_ms = 15000
 log_level = info
 dialog_mode = auto
 reconnect_backoff_ms = 3000
+
+[control_plane]
+bind_host = 127.0.0.1
+port = 19090

@@ -47,10 +47,14 @@ APP_SRCS	:= \
 	$(SRC_DIR)/audio_playback.c \
 	$(SRC_DIR)/cJSON.c \
 	$(SRC_DIR)/config.c \
+	$(SRC_DIR)/control_plane/control_events.c \
+	$(SRC_DIR)/control_plane/control_plane_server.c \
 	$(SRC_DIR)/event_queue.c \
 	$(SRC_DIR)/main.c \
+	$(SRC_DIR)/daemon/daemon_runtime.c \
 	$(SRC_DIR)/opus_codec.c \
 	$(SRC_DIR)/ota_client.c \
+	$(SRC_DIR)/control_plane/control_protocol.c \
 	$(SRC_DIR)/session.c \
 	$(SRC_DIR)/xiaozhi_client.c \
 	$(SRC_DIR)/xiaozhi_protocol.c \
@@ -65,8 +69,12 @@ TEST_SUPPORT_SRCS := \
 	$(SRC_DIR)/event_queue.c \
 	$(SRC_DIR)/log.c \
 	$(SRC_DIR)/config.c \
+	$(SRC_DIR)/control_plane/control_plane_server.c \
+	$(SRC_DIR)/daemon/daemon_runtime.c \
 	$(SRC_DIR)/opus_codec.c \
 	$(SRC_DIR)/ota_client.c \
+	$(SRC_DIR)/control_plane/control_protocol.c \
+	$(SRC_DIR)/control_plane/control_events.c \
 	$(SRC_DIR)/session.c \
 	$(SRC_DIR)/xiaozhi_client.c \
 	$(SRC_DIR)/xiaozhi_protocol.c
@@ -98,9 +106,11 @@ $(TEST_BIN): $(TEST_SRC) $(TEST_SUPPORT_OBJS) $(CPP_OBJS) | $(BUILD_DIR)/tests
 	fi
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(BUILD_DIR)
+	@mkdir -p $(dir $@)
 	$(CC) $(COMMON_CFLAGS) $(DEPFLAGS) -c -o $@ $<
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cc | $(BUILD_DIR)
+	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) $(DEPFLAGS) -c -o $@ $<
 
 $(BUILD_DIR):

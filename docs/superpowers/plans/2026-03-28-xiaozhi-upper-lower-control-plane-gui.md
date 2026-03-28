@@ -12,6 +12,27 @@
 
 **对应规格文档：** `docs/superpowers/specs/2026-03-28-xiaozhi-upper-lower-control-plane-gui-design.md`
 
+## 执行状态（2026-03-28）
+
+- [x] 任务 1：CMake 骨架
+- [x] 任务 2：`xiaozhi_core` / `xiaozhi_daemon` targets
+- [x] 任务 3：`control_plane` 配置项与测试
+- [x] 任务 4：控制协议 JSON 编解码
+- [x] 任务 5：核心事件到控制事件映射
+- [x] 任务 6：daemon runtime + 控制面服务主干（已是可运行 WebSocket 服务）
+- [x] 任务 7：Qt `ControlClient` + `ViewModel`
+- [x] 任务 8：三页面 QML 与命令绑定
+- [x] 任务 9：同机冒烟（含真实 WebSocket 网络测试）
+- [x] 任务 10：中文 CMake 文档与运行手册
+- [~] 任务 11：最终收口进行中
+
+当前保留项（按需求暂缓）：
+- `set_server_config` / `set_audio_config` / `test_connection` 仅保留占位命令与 `command_ack`，暂不执行业务逻辑。
+
+当前待完成项：
+- 安装 Qt6 后执行手工 GUI 三页联调验收并记录结果。
+- 按运行手册执行分支合并/提交流程。
+
 ## 文件结构映射
 
 ### 新建
