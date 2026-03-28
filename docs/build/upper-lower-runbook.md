@@ -111,3 +111,66 @@ sudo apt install -y qml6-module-qtquick-controls qml6-module-qtquick-layouts
 说明：
 - 自动模式下静音超时是“记录但忽略动作”，属于设计行为。
 - 真正停录触发点是收到服务器 `stt`。
+
+## 7. 手工 GUI 三页联调验收
+
+### 7.1 验收前准备
+
+```bash
+cmake -S . -B build-cmake
+cmake --build build-cmake -j
+```
+
+### 7.2 启动服务
+
+终端 A：
+
+```bash
+./build-cmake/xiaozhi_daemon --config config/xiaozhi.ini
+```
+
+终端 B：
+
+```bash
+./build-cmake/xiaozhi_gui
+```
+
+### 7.3 三页验收项
+
+Connection Settings：
+- 可看到默认控制面地址 `ws://127.0.0.1:19090`。
+- 点击 `Test Connection` 后状态从 `connecting` 进入 `connected` 或可见错误提示。
+- daemon 侧有控制面连接日志。
+
+Audio & Hardware：
+- 调整滑块/开关不崩溃，界面状态可实时变化。
+- 触发 `set_audio_config` 后收到 `command_ack`（当前为占位 no-op）。
+
+Live Conversation：
+- 可看到 `state_changed` 事件驱动的状态变化。
+- 点击 `Connect/Disconnect` 后状态变化与 daemon 日志一致。
+- STT/LLM 文本区域可接收并展示事件文本。
+
+## 8. 分支合并/提交流程
+
+以下示例以 `feature/upper-lower-gui` 合并到 `feature/code_check` 为例：
+
+```bash
+git checkout feature/code_check
+git pull --ff-only
+git merge --no-ff feature/upper-lower-gui
+```
+
+合并后建议再次执行：
+
+```bash
+cmake -S . -B build-cmake
+cmake --build build-cmake -j
+ctest --test-dir build-cmake --output-on-failure
+```
+
+若需要推送远端：
+
+```bash
+git push origin feature/code_check
+```

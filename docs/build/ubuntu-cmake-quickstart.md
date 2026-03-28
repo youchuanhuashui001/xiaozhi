@@ -12,9 +12,24 @@ sudo apt install -y \
   qt6-base-dev qt6-declarative-dev qt6-websockets-dev
 ```
 
+如需完整 QML 运行时，额外安装：
+
+```bash
+sudo apt install -y \
+  qml6-module-qtquick qml6-module-qtquick-controls \
+  qml6-module-qtquick-layouts qml6-module-qtwebsockets
+```
+
 说明：
 - 如果你暂时不编译 GUI，可不安装 Qt6 相关包。
 - 未安装 Qt6 时，CMake 会自动跳过 `xiaozhi_gui` 目标。
+- 可用以下命令验证 Qt6 是否安装成功：
+
+```bash
+pkg-config --modversion Qt6Core
+pkg-config --modversion Qt6Quick
+pkg-config --modversion Qt6WebSockets
+```
 
 ## 2. 配置工程
 
