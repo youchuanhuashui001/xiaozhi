@@ -69,6 +69,7 @@ TEST_SUPPORT_SRCS := \
 	$(SRC_DIR)/opus_codec.c \
 	$(SRC_DIR)/ota_client.c \
 	$(SRC_DIR)/control_plane/control_protocol.c \
+	$(SRC_DIR)/control_plane/control_events.c \
 	$(SRC_DIR)/session.c \
 	$(SRC_DIR)/xiaozhi_client.c \
 	$(SRC_DIR)/xiaozhi_protocol.c
