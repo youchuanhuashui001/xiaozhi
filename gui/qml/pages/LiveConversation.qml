@@ -135,7 +135,7 @@ Item {
                                 radius: 3
                                 color: "#4A3AFF"
                                 height: 16 + ((index + 1) % 3) * 10
-                                anchors.verticalCenter: parent.verticalCenter
+                                Layout.alignment: Qt.AlignVCenter
                             }
                         }
 

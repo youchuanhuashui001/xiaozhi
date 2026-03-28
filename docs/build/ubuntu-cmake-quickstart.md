@@ -18,6 +18,7 @@ sudo apt install -y \
 sudo apt install -y \
   qml6-module-qtquick qml6-module-qtquick-controls \
   qml6-module-qtquick-layouts qml6-module-qtquick-templates \
+  qml6-module-qtquick-window \
   qml6-module-qtwebsockets \
   qml6-module-qtqml qml6-module-qtqml-workerscript
 ```
@@ -111,4 +112,12 @@ pytest -q tests_python
 
 ```bash
 sudo apt install -y qml6-module-qtquick-templates
+```
+
+### 6.6 `module "QtQuick.Window" is not installed`
+
+处理：
+
+```bash
+sudo apt install -y qml6-module-qtquick-window
 ```
