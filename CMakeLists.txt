@@ -3,9 +3,25 @@ project(xiaozhi C CXX)
 
 enable_testing()
 
-file(GLOB CORE_SRCS CONFIGURE_DEPENDS
-    src/*.c
-    src/*.cc
+set(CORE_SRCS
+    src/app.c
+    src/audio_buffer.c
+    src/audio_capture.c
+    src/audio_playback.c
+    src/cJSON.c
+    src/command.c
+    src/config.c
+    src/event_queue.c
+    src/http_server.c
+    src/log.c
+    src/msg_queue.c
+    src/opus_codec.c
+    src/ota_client.c
+    src/sensor_sim.c
+    src/session.c
+    src/ws_server.c
+    src/xiaozhi_client.c
+    src/xiaozhi_protocol.c
 )
 
 add_library(xiaozhi_core STATIC ${CORE_SRCS})
