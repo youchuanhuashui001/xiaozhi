@@ -1,6 +1,7 @@
 #ifndef CONTROL_PLANE_SERVER_H
 #define CONTROL_PLANE_SERVER_H
 
+#include <stddef.h>
 #include <libwebsockets.h>
 #include <pthread.h>
 
@@ -16,6 +17,9 @@ typedef struct {
 	pthread_mutex_t event_lock;
 	char last_outbound_json[1024];
 	unsigned long outbound_seq;
+	char outbound_queue[64][1024];
+	size_t outbound_head;
+	size_t outbound_count;
 	unsigned long last_runtime_seq;
 } control_plane_server_t;
 

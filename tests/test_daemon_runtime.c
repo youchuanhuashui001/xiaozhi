@@ -21,8 +21,11 @@ static void test_daemon_runtime_tracks_last_command(void)
 	daemon_runtime_t rt = {0};
 	control_plane_server_t server = {0};
 	control_command_t cmd = {0};
+	control_event_t drained = {0};
 
 	assert(daemon_runtime_init(&rt, &app) == 0);
+	while (daemon_runtime_pop_event(&rt, &drained) == 1)
+		;
 	assert(control_plane_server_init(&server, &rt) == 0);
 	assert(control_plane_server_start(&server) == 0);
 
@@ -65,11 +68,50 @@ static void test_daemon_runtime_tracks_last_command(void)
 		      "\"ok\":true") != NULL);
 
 	control_plane_server_stop(&server);
+	daemon_runtime_destroy(&rt);
+}
+
+static void test_daemon_runtime_preserves_protocol_event_order(void)
+{
+	app_runtime_t app = {0};
+	daemon_runtime_t rt = {0};
+	app_observer_event_t ev = {0};
+	control_event_t out = {0};
+	control_event_t drained = {0};
+
+	assert(daemon_runtime_init(&rt, &app) == 0);
+	assert(app.observer_fn != NULL);
+	while (daemon_runtime_pop_event(&rt, &drained) == 1)
+		;
+
+	memset(&ev, 0, sizeof(ev));
+	ev.kind = APP_OBSERVER_EVENT_PROTOCOL;
+	ev.protocol.type = XIAOZHI_EVENT_STT;
+	strcpy(ev.protocol.text, "hello from user");
+	app.observer_fn(&ev, app.observer_ctx);
+
+	memset(&ev, 0, sizeof(ev));
+	ev.kind = APP_OBSERVER_EVENT_PROTOCOL;
+	ev.protocol.type = XIAOZHI_EVENT_TTS_SENTENCE;
+	strcpy(ev.protocol.text, "reply from assistant");
+	app.observer_fn(&ev, app.observer_ctx);
+
+	assert(daemon_runtime_pop_event(&rt, &out) == 1);
+	assert(strcmp(out.name, "stt_result") == 0);
+	assert(strstr(out.payload, "\"text\":\"hello from user\"") != NULL);
+
+	assert(daemon_runtime_pop_event(&rt, &out) == 1);
+	assert(strcmp(out.name, "llm_text") == 0);
+	assert(strstr(out.payload, "\"text\":\"reply from assistant\"") != NULL);
+
+	assert(daemon_runtime_pop_event(&rt, &out) == 0);
+	daemon_runtime_destroy(&rt);
 }
 
 int main(void)
 {
 	test_app_set_observer_registers_callback();
 	test_daemon_runtime_tracks_last_command();
+	test_daemon_runtime_preserves_protocol_event_order();
 	return 0;
 }

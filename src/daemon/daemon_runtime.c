@@ -5,6 +5,10 @@
 
 #include "control_plane/control_events.h"
 
+enum {
+	DAEMON_RUNTIME_PENDING_EVENT_CAPACITY = 32
+};
+
 static int daemon_runtime_copy_string(char *dst, size_t dst_size,
 					 const char *src)
 {
@@ -90,6 +94,26 @@ static int daemon_runtime_capture_error_event(daemon_runtime_t *rt,
 	return 0;
 }
 
+static void daemon_runtime_enqueue_event(daemon_runtime_t *rt,
+					 const control_event_t *event)
+{
+	size_t insert_at;
+
+	if (!rt || !event || event->name[0] == '\0')
+		return;
+
+	if (rt->pending_count == DAEMON_RUNTIME_PENDING_EVENT_CAPACITY) {
+		rt->pending_head =
+			(rt->pending_head + 1) % DAEMON_RUNTIME_PENDING_EVENT_CAPACITY;
+		rt->pending_count--;
+	}
+
+	insert_at = (rt->pending_head + rt->pending_count) %
+		    DAEMON_RUNTIME_PENDING_EVENT_CAPACITY;
+	rt->pending_events[insert_at] = *event;
+	rt->pending_count++;
+}
+
 static void daemon_runtime_on_app_event(const app_observer_event_t *event, void *ctx)
 {
 	daemon_runtime_t *rt = ctx;
@@ -103,15 +127,19 @@ static void daemon_runtime_on_app_event(const app_observer_event_t *event, void 
 
 	switch (event->kind) {
 	case APP_OBSERVER_EVENT_STATE_CHANGED:
-		(void)daemon_runtime_capture_state_event(rt, event->state);
+		if (daemon_runtime_capture_state_event(rt, event->state) == 0)
+			daemon_runtime_enqueue_event(rt, &rt->last_control_event);
 		break;
 	case APP_OBSERVER_EVENT_PROTOCOL:
 		memset(&mapped, 0, sizeof(mapped));
-		if (control_events_from_protocol(&event->protocol, &mapped) == 0)
+		if (control_events_from_protocol(&event->protocol, &mapped) == 0) {
 			rt->last_control_event = mapped;
+			daemon_runtime_enqueue_event(rt, &mapped);
+		}
 		break;
 	case APP_OBSERVER_EVENT_ERROR:
-		(void)daemon_runtime_capture_error_event(rt, event);
+		if (daemon_runtime_capture_error_event(rt, event) == 0)
+			daemon_runtime_enqueue_event(rt, &rt->last_control_event);
 		break;
 	case APP_OBSERVER_EVENT_NONE:
 	default:
@@ -203,6 +231,25 @@ int daemon_runtime_snapshot(daemon_runtime_t *rt, control_event_t *event,
 		*observed_event_count = rt->observed_event_count;
 	pthread_mutex_unlock(&rt->lock);
 	return 0;
+}
+
+int daemon_runtime_pop_event(daemon_runtime_t *rt, control_event_t *event)
+{
+	if (!rt || !event)
+		return -1;
+
+	pthread_mutex_lock(&rt->lock);
+	if (rt->pending_count == 0) {
+		pthread_mutex_unlock(&rt->lock);
+		return 0;
+	}
+
+	*event = rt->pending_events[rt->pending_head];
+	rt->pending_head =
+		(rt->pending_head + 1) % DAEMON_RUNTIME_PENDING_EVENT_CAPACITY;
+	rt->pending_count--;
+	pthread_mutex_unlock(&rt->lock);
+	return 1;
 }
 
 void daemon_runtime_destroy(daemon_runtime_t *rt)

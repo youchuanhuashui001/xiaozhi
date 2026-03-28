@@ -30,19 +30,56 @@ static void control_plane_server_notify_clients(control_plane_server_t *server)
 	lws_cancel_service(server->context);
 }
 
+static size_t control_plane_server_outbound_capacity(void)
+{
+	return sizeof(((control_plane_server_t *)0)->outbound_queue) /
+	       sizeof(((control_plane_server_t *)0)->outbound_queue[0]);
+}
+
+static int control_plane_server_enqueue_json_locked(control_plane_server_t *server,
+						    const char *json)
+{
+	size_t cap = control_plane_server_outbound_capacity();
+	size_t insert_at;
+
+	if (!server || !json || cap == 0)
+		return -1;
+
+	if (snprintf(server->last_outbound_json, sizeof(server->last_outbound_json), "%s",
+		     json) >= (int)sizeof(server->last_outbound_json))
+		return -1;
+
+	if (server->outbound_count == cap) {
+		server->outbound_head = (server->outbound_head + 1) % cap;
+		server->outbound_count--;
+	}
+
+	insert_at = (server->outbound_head + server->outbound_count) % cap;
+	if (snprintf(server->outbound_queue[insert_at],
+		     sizeof(server->outbound_queue[insert_at]), "%s",
+		     json) >= (int)sizeof(server->outbound_queue[insert_at]))
+		return -1;
+
+	server->outbound_count++;
+	server->outbound_seq++;
+	return 0;
+}
+
 static int control_plane_server_publish_event(control_plane_server_t *server,
 					      const control_event_t *event)
 {
 	int rc;
+	char outbound_json[sizeof(server->last_outbound_json)];
 
 	if (!server || !event)
 		return -1;
 
+	rc = control_protocol_build_event(event, outbound_json, sizeof(outbound_json));
+	if (rc != 0)
+		return -1;
+
 	pthread_mutex_lock(&server->event_lock);
-	rc = control_protocol_build_event(event, server->last_outbound_json,
-					  sizeof(server->last_outbound_json));
-	if (rc == 0)
-		server->outbound_seq++;
+	rc = control_plane_server_enqueue_json_locked(server, outbound_json);
 	pthread_mutex_unlock(&server->event_lock);
 	if (rc != 0)
 		return -1;
@@ -132,23 +169,21 @@ static int control_plane_server_publish_command_ack(control_plane_server_t *serv
 static int control_plane_server_publish_runtime_updates(control_plane_server_t *server)
 {
 	control_event_t event;
-	unsigned long observed_seq = 0;
+	int rc;
 
 	if (!server || !server->runtime)
 		return -1;
 
-	memset(&event, 0, sizeof(event));
-	if (daemon_runtime_snapshot(server->runtime, &event, &observed_seq) != 0)
-		return -1;
-
-	if (observed_seq == 0 || observed_seq == server->last_runtime_seq)
-		return 0;
-	server->last_runtime_seq = observed_seq;
-
-	if (event.name[0] == '\0')
-		return 0;
-
-	return control_plane_server_publish_event(server, &event);
+	for (;;) {
+		memset(&event, 0, sizeof(event));
+		rc = daemon_runtime_pop_event(server->runtime, &event);
+		if (rc < 0)
+			return -1;
+		if (rc == 0)
+			return 0;
+		if (control_plane_server_publish_event(server, &event) != 0)
+			return -1;
+	}
 }
 
 int control_plane_server_init(control_plane_server_t *server,
@@ -207,6 +242,10 @@ int control_plane_server_start(control_plane_server_t *server)
 	server->started = 1;
 	server->stop_requested = 0;
 	server->last_runtime_seq = 0;
+	server->outbound_head = 0;
+	server->outbound_count = 0;
+	server->outbound_seq = 0;
+	server->last_outbound_json[0] = '\0';
 	if (pthread_create(&server->thread, NULL, control_plane_server_thread_main,
 			   server) != 0) {
 		server->started = 0;
@@ -291,7 +330,7 @@ static int control_plane_server_callback(struct lws *wsi,
 	switch (reason) {
 	case LWS_CALLBACK_ESTABLISHED:
 		if (session)
-			session->delivered_seq = 0;
+			session->delivered_seq = server->outbound_seq;
 		(void)control_plane_server_publish_state_snapshot(server);
 		lws_callback_on_writable(wsi);
 		break;
@@ -312,19 +351,31 @@ static int control_plane_server_callback(struct lws *wsi,
 	case LWS_CALLBACK_SERVER_WRITEABLE: {
 		char outbound[sizeof(server->last_outbound_json)];
 		unsigned long send_seq = 0;
+		unsigned long queued_latest = 0;
 		size_t msg_len;
 		unsigned char frame[LWS_PRE + sizeof(outbound)];
+		unsigned long earliest_seq;
+		unsigned long next_seq;
+		size_t cap = control_plane_server_outbound_capacity();
 
 		if (!session)
 			break;
 
 		outbound[0] = '\0';
 		pthread_mutex_lock(&server->event_lock);
-		if (session->delivered_seq < server->outbound_seq &&
-		    server->last_outbound_json[0] != '\0') {
-			if (snprintf(outbound, sizeof(outbound), "%s",
-				     server->last_outbound_json) < (int)sizeof(outbound))
-				send_seq = server->outbound_seq;
+		queued_latest = server->outbound_seq;
+		if (server->outbound_count > 0 && cap > 0) {
+			earliest_seq = server->outbound_seq - server->outbound_count + 1;
+			next_seq = session->delivered_seq + 1;
+			if (next_seq < earliest_seq)
+				next_seq = earliest_seq;
+			if (next_seq <= server->outbound_seq) {
+				size_t offset = (size_t)(next_seq - earliest_seq);
+				size_t index = (server->outbound_head + offset) % cap;
+				if (snprintf(outbound, sizeof(outbound), "%s",
+					     server->outbound_queue[index]) < (int)sizeof(outbound))
+					send_seq = next_seq;
+			}
 		}
 		pthread_mutex_unlock(&server->event_lock);
 
@@ -336,6 +387,8 @@ static int control_plane_server_callback(struct lws *wsi,
 		if (lws_write(wsi, &frame[LWS_PRE], msg_len, LWS_WRITE_TEXT) < 0)
 			return -1;
 		session->delivered_seq = send_seq;
+		if (session->delivered_seq < queued_latest)
+			lws_callback_on_writable(wsi);
 		break;
 	}
 	default:

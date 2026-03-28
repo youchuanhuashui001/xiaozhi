@@ -1,6 +1,7 @@
 #ifndef DAEMON_RUNTIME_H
 #define DAEMON_RUNTIME_H
 
+#include <stddef.h>
 #include <pthread.h>
 
 #include "app.h"
@@ -23,6 +24,9 @@ typedef struct {
 	control_command_t last_control_command;
 	control_event_t last_control_event;
 	unsigned long observed_event_count;
+	control_event_t pending_events[32];
+	size_t pending_head;
+	size_t pending_count;
 	pthread_mutex_t lock;
 } daemon_runtime_t;
 
@@ -31,6 +35,7 @@ int daemon_runtime_submit_command(daemon_runtime_t *rt,
 				     const control_command_t *cmd);
 int daemon_runtime_snapshot(daemon_runtime_t *rt, control_event_t *event,
 			    unsigned long *observed_event_count);
+int daemon_runtime_pop_event(daemon_runtime_t *rt, control_event_t *event);
 void daemon_runtime_destroy(daemon_runtime_t *rt);
 
 #endif /* DAEMON_RUNTIME_H */
