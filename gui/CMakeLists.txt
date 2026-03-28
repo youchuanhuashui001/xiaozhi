@@ -49,6 +49,9 @@ target_link_libraries(test_view_model
 )
 
 add_test(NAME test_view_model COMMAND test_view_model)
+set_tests_properties(test_view_model PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+)
 
 add_executable(test_qml_smoke
     tests/test_qml_smoke.cpp
@@ -73,3 +76,6 @@ qt_add_resources(test_qml_smoke "xiaozhi_gui_qml_smoke"
 )
 
 add_test(NAME test_qml_smoke COMMAND test_qml_smoke)
+set_tests_properties(test_qml_smoke PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+)

@@ -17,7 +17,8 @@ sudo apt install -y \
 ```bash
 sudo apt install -y \
   qml6-module-qtquick qml6-module-qtquick-controls \
-  qml6-module-qtquick-layouts qml6-module-qtwebsockets
+  qml6-module-qtquick-layouts qml6-module-qtwebsockets \
+  qml6-module-qtqml qml6-module-qtqml-workerscript
 ```
 
 说明：

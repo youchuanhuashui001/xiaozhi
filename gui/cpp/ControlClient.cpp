@@ -17,7 +17,12 @@ ControlClient::ControlClient(QObject *parent)
     connect(m_socket, &QWebSocket::connected, this, &ControlClient::handleSocketConnected);
     connect(m_socket, &QWebSocket::disconnected, this, &ControlClient::handleSocketDisconnected);
     connect(m_socket, &QWebSocket::textMessageReceived, this, &ControlClient::handleTextMessage);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     connect(m_socket, &QWebSocket::errorOccurred, this, &ControlClient::handleSocketError);
+#else
+    connect(m_socket, QOverload<QAbstractSocket::SocketError>::of(&QWebSocket::error),
+            this, &ControlClient::handleSocketError);
+#endif
 }
 
 ControlClient::~ControlClient() = default;

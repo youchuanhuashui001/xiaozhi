@@ -38,7 +38,7 @@ target_link_libraries(xiaozhi_daemon PRIVATE xiaozhi_core)
 target_include_directories(xiaozhi_daemon PRIVATE src)
 
 add_subdirectory(tests)
-add_subdirectory(gui EXCLUDE_FROM_ALL)
+add_subdirectory(gui)
 
 find_program(PYTEST_EXECUTABLE pytest)
 if (PYTEST_EXECUTABLE)

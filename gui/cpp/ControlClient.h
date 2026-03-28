@@ -2,11 +2,11 @@
 #define GUI_CONTROL_CLIENT_H
 
 #include <QObject>
+#include <QAbstractSocket>
 #include <QJsonObject>
 #include <QString>
 #include <QVariantMap>
 
-class QAbstractSocket;
 class QWebSocket;
 
 class ControlClient : public QObject {
