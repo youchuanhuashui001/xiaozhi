@@ -8,3 +8,4 @@ def test_cmake_configure_generates_cache(tmp_path):
         text=True,
     )
     assert rc.returncode == 0, rc.stderr
+    assert (build_dir / "CMakeCache.txt").is_file()
