@@ -9,7 +9,7 @@ sudo apt update
 sudo apt install -y \
   build-essential cmake pkg-config git \
   libwebsockets-dev libopus-dev libasound2-dev \
-  qt6-base-dev qt6-declarative-dev qt6-websockets-dev
+  qt6-base-dev qt6-declarative-dev libqt6websockets6-dev
 ```
 
 如需完整 QML 运行时，额外安装：
@@ -84,7 +84,7 @@ pytest -q tests_python
 ### 6.1 `Qt6 not found, skip gui targets`
 
 原因：Qt6 开发包未安装。  
-处理：安装 `qt6-base-dev qt6-declarative-dev qt6-websockets-dev` 后重新 `cmake -S . -B build-cmake`。
+处理：安装 `qt6-base-dev qt6-declarative-dev libqt6websockets6-dev` 后重新 `cmake -S . -B build-cmake`。
 
 ### 6.2 `Could NOT find Opus` / `Could NOT find Libwebsockets`
 
