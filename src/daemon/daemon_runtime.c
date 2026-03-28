@@ -173,15 +173,10 @@ int daemon_runtime_submit_command(daemon_runtime_t *rt,
 		rc = app_control_disconnect(rt->app);
 		break;
 	case DAEMON_RUNTIME_COMMAND_SET_SERVER_CONFIG:
-		rc = app_control_set_server_config(rt->app,
-						  cmd->payload[0] ? cmd->payload : "{}");
-		break;
 	case DAEMON_RUNTIME_COMMAND_SET_AUDIO_CONFIG:
-		rc = app_control_set_audio_config(rt->app,
-						 cmd->payload[0] ? cmd->payload : "{}");
-		break;
 	case DAEMON_RUNTIME_COMMAND_TEST_CONNECTION:
-		rc = app_control_test_connection(rt->app);
+		/* Reserved command: accepted but intentionally no-op for now. */
+		rc = 0;
 		break;
 	case DAEMON_RUNTIME_COMMAND_SHUTDOWN_CLIENT:
 		rc = app_control_shutdown(rt->app);
